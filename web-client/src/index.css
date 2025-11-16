@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Neo-Brutalism 全局样式 */
+@layer base {
+  body {
+    @apply bg-brut-white text-brut-black font-sans;
+  }
+
+  * {
+    @apply box-border;
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  /* Brutalist Button */
+  .brut-button {
+    @apply px-6 py-3
+           bg-brut-yellow
+           border-brut border-brut-black
+           shadow-brut-md
+           font-bold uppercase
+           transition-all duration-100
+           hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-brut-sm
+           active:translate-x-1 active:translate-y-1 active:shadow-none;
+  }
+
+  .brut-button-primary {
+    @apply brut-button bg-brut-blue text-brut-white;
+  }
+
+  .brut-button-danger {
+    @apply brut-button bg-brut-red text-brut-white;
+  }
+
+  .brut-button-secondary {
+    @apply brut-button bg-brut-white text-brut-black;
+  }
+
+  /* Brutalist Card */
+  .brut-card {
+    @apply bg-brut-white
+           border-brut border-brut-black
+           shadow-brut-lg
+           p-6;
+  }
+
+  .brut-card-yellow {
+    @apply brut-card bg-brut-yellow;
+  }
+
+  .brut-card-blue {
+    @apply brut-card bg-brut-blue text-brut-white;
+  }
+
+  /* Brutalist Input */
+  .brut-input {
+    @apply w-full px-4 py-3
+           bg-brut-white
+           border-brut border-brut-black
+           shadow-brut-sm
+           focus:outline-none
+           focus:shadow-brut-md
+           focus:translate-x-0.5 focus:translate-y-0.5
+           transition-all duration-100;
+  }
+
+  /* Brutalist Container */
+  .brut-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Brutalist Heading */
+  .brut-heading {
+    @apply font-bold uppercase tracking-tight;
+  }
+
+  .brut-h1 {
+    @apply brut-heading text-4xl md:text-5xl lg:text-6xl;
+  }
+
+  .brut-h2 {
+    @apply brut-heading text-3xl md:text-4xl lg:text-5xl;
+  }
+
+  .brut-h3 {
+    @apply brut-heading text-2xl md:text-3xl lg:text-4xl;
+  }
+
+  .brut-h4 {
+    @apply brut-heading text-xl md:text-2xl lg:text-3xl;
+  }
+}
+
+/* 禁用的风格(绝对禁止使用) */
+/* ❌ 不要使用渐变 */
+/* ❌ 不要使用blur阴影 */
+/* ❌ 不要使用大圆角 */
+/* ❌ 不要使用半透明 */

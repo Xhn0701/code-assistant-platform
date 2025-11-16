@@ -1,0 +1,77 @@
+# Java
+*.class
+*.jar
+*.war
+*.ear
+target/
+*.iml
+.idea/
+.settings/
+.classpath
+.project
+.mvn/
+
+# Maven dependencies wrongly placed in project directory
+java-service/user-service/aopalliance/
+java-service/user-service/asm/
+java-service/user-service/backport-util-concurrent/
+java-service/user-service/ch/
+java-service/user-service/classworlds/
+java-service/user-service/com/
+java-service/user-service/commons-*/
+java-service/user-service/io/
+java-service/user-service/jakarta/
+java-service/user-service/javax/
+java-service/user-service/junit/
+java-service/user-service/net/
+java-service/user-service/org/
+java-service/user-service/uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+data/postgres/
+data/redis/
+
+# Vector Store
+data/vectorstore/
+chroma_db/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Temporary
+tmp/
+temp/
+*.tmp

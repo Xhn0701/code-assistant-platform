@@ -1,0 +1,68 @@
+package com.codeassistant.user.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import springfox.documentation.builders.ApiInfoBuilder;
+import springfox.documentation.builders.PathSelectors;
+import springfox.documentation.builders.RequestHandlerSelectors;
+import springfox.documentation.service.*;
+import springfox.documentation.spi.DocumentationType;
+import springfox.documentation.spi.service.contexts.SecurityContext;
+import springfox.documentation.spring.web.plugins.Docket;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Swagger配置 (Springfox for Spring Boot 2.x)
+ * 访问地址: http://localhost:8080/swagger-ui/
+ */
+@Configuration
+public class SwaggerConfig {
+
+    @Bean
+    public Docket api() {
+        return new Docket(DocumentationType.OAS_30)
+                .apiInfo(apiInfo())
+                .select()
+                .apis(RequestHandlerSelectors.basePackage("com.codeassistant.user.controller"))
+                .paths(PathSelectors.any())
+                .build()
+                .securitySchemes(Arrays.asList(apiKey()))
+                .securityContexts(Arrays.asList(securityContext()));
+    }
+
+    private ApiInfo apiInfo() {
+        return new ApiInfoBuilder()
+                .title("智能代码助手平台 - 用户服务API")
+                .description("提供用户认证、用户管理等功能")
+                .version("v1.0.0")
+                .contact(new Contact("Code Assistant Platform",
+                        "https://github.com/your-repo",
+                        "contact@codeassistant.com"))
+                .license("MIT License")
+                .licenseUrl("https://opensource.org/licenses/MIT")
+                .build();
+    }
+
+    /**
+     * 配置JWT认证
+     */
+    private ApiKey apiKey() {
+        return new ApiKey("Bearer", "Authorization", "header");
+    }
+
+    private SecurityContext securityContext() {
+        return SecurityContext.builder()
+                .securityReferences(defaultAuth())
+                .build();
+    }
+
+    private List<SecurityReference> defaultAuth() {
+        AuthorizationScope authorizationScope = new AuthorizationScope("global", "accessEverything");
+        AuthorizationScope[] authorizationScopes = new AuthorizationScope[1];
+        authorizationScopes[0] = authorizationScope;
+        return Arrays.asList(new SecurityReference("Bearer", authorizationScopes));
+    }
+}

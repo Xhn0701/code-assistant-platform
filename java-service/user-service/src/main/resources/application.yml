@@ -1,0 +1,113 @@
+server:
+  port: ${JAVA_USER_SERVICE_PORT:8080}
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: user-service
+
+  # 数据库配置
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:code_assistant}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # Redis配置
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+      timeout: 3000
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 2MB        # 单个文件最大2MB
+      max-request-size: 10MB    # 整个请求最大10MB
+      file-size-threshold: 1MB  # 超过1MB写入临时文件
+
+# MyBatis-Plus配置
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.codeassistant.user.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET:your-super-secret-jwt-key-for-hs512-algorithm-min-64-characters-required-change-in-production}
+  expiration: ${JWT_EXPIRATION:86400000}  # 24小时
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7天
+
+# Python Agent服务配置
+agent-service:
+  url: http://${PYTHON_AGENT_SERVICE_HOST:localhost}:${PYTHON_AGENT_SERVICE_PORT:8000}
+
+# 文件存储配置
+file:
+  upload:
+    # 上传目录（相对于项目根目录）
+    path: ${FILE_UPLOAD_PATH:uploads/avatars}
+    # 允许的文件类型
+    allowed-types: jpg,jpeg,png,gif
+    # 单个文件最大大小（字节）
+    max-size: 2097152  # 2MB
+    # 访问URL前缀
+    url-prefix: /uploads/avatars
+
+# 日志配置
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    com.codeassistant: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/user-service.log
+
+# Actuator配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# SpringDoc OpenAPI配置
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  packages-to-scan: com.codeassistant.user.controller
+  paths-to-match: /api/**
