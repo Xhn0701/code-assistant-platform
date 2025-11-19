@@ -953,3 +953,10 @@ project-service/
 - Spring Boot 2.7.18 + Java 17 + Springdoc 1.7.x（与 user-service 保持一致）
 - 端口默认 8081（application.yml 可根据 docker-compose 配置调整）
 - 后续按需补充 controller/service/mapper/entity 等模块
+
+---
+
+模块说明补充：user-service（目录修复完成）
+
+- 已清理异常目录（历史遗留）：`{src`、`{src\\main`、`{src\\test`，不影响现有标准目录 `src/main/...`。
+- 目的：保持 Maven 标准结构，避免 IDE/构建工具识别异常。
