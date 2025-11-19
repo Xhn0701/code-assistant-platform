@@ -960,3 +960,11 @@ project-service/
 
 - 已清理异常目录（历史遗留）：`{src`、`{src\\main`、`{src\\test`，不影响现有标准目录 `src/main/...`。
 - 目的：保持 Maven 标准结构，避免 IDE/构建工具识别异常。
+
+---
+
+附录：仓库卫生补充（user-service）
+- 清理误入依赖目录：`java-service/user-service/` 下的 `aopalliance/`, `asm/`, `classworlds/`, `com/`, `commons-*`, `io/`, `jakarta/`, `javax/`, `junit/`, `net/`, `org/` 等已移除（这些应位于 `~/.m2/repository`）。
+- 删除遗留备份与 IDE 目录：`*.bak`（Springfox/Swagger/impl 备份）与 `.idea/` 目录。
+- 新增 `.gitattributes`：统一换行策略（text=auto，关键文件使用 LF）。
+- `uploads/` 目录使用 `.gitkeep` 保留空目录结构（.gitignore 中放行 `.gitkeep`）。

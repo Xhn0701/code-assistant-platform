@@ -110,3 +110,7 @@ agent-service/venv/
 
 # Editor/backup suffixes
 *.bak
+
+# Allow keeping empty uploads dirs via .gitkeep
+!java-service/user-service/uploads/.gitkeep
+!java-service/user-service/uploads/avatars/.gitkeep

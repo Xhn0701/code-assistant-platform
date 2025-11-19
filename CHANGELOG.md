@@ -436,3 +436,6 @@
 ### Fixed（修复）
 - （[未发布]）修复 `java-service/project-service` 异常目录名（如 `{src`, `{src\\main`, `{src\\main\\resources}` 等），重建为标准 Maven 结构并提供最小骨架（`pom.xml`、`ProjectServiceApplication.java`、`application.yml`）。
 - （[未发布]）修复 `java-service/user-service` 异常目录名（`{src`, `{src\\main`, `{src\\test`）以符合标准 Maven 结构。
+
+### Chore（维护）
+- （[未发布]）仓库卫生：清理 `java-service/user-service` 误入依赖目录（aopalliance/、com/、io/、org/ 等）、删除遗留 `*.bak` 备份与 `.idea/` 目录；新增 `.gitattributes` 统一换行策略；为 `uploads/` 目录添加 `.gitkeep` 并在 `.gitignore` 放行。
