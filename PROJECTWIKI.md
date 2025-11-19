@@ -33,6 +33,8 @@
 - 支持Docker一键部署
 - 代码质量达到生产级别
 
+> 版本一致性说明：当前实现采用 Spring Boot 2.7.18 + Java 17；OpenAPI 使用 Springdoc 1.7.x；Spring Security 采用 Boot 2.7 风格配置（EnableGlobalMethodSecurity + antMatchers）。
+
 ---
 
 ## 架构设计
@@ -538,6 +540,87 @@ docs(readme): 更新安装文档
 }
 ```
 
+#### 对话与消息接口（Chat API）
+
+**POST /api/v1/chat/conversations**
+```json
+// 请求（需要 Authorization 头，用户从上下文获取）
+{
+  "projectId": 1,
+  "title": "关于用户登录模块的讨论"
+}
+
+// 响应
+{
+  "code": 200,
+  "data": {
+    "id": "conv-123",
+    "projectId": 1,
+    "userId": 42,
+    "title": "关于用户登录模块的讨论",
+    "createdAt": "2025-11-16T12:00:00",
+    "updatedAt": "2025-11-16T12:00:00"
+  }
+}
+```
+
+**GET /api/v1/chat/conversations/{projectId}**
+```json
+// 响应
+{
+  "code": 200,
+  "data": [
+    {
+      "id": "conv-123",
+      "projectId": 1,
+      "userId": 42,
+      "title": "关于用户登录模块的讨论",
+      "createdAt": "2025-11-16T12:00:00",
+      "updatedAt": "2025-11-16T12:00:00"
+    }
+  ]
+}
+```
+
+**POST /api/v1/chat/{conversationId}/messages**
+```json
+// 请求
+{
+  "content": "请帮我看一下登录接口的安全性问题？"
+}
+
+// 响应
+{
+  "code": 200,
+  "data": {
+    "id": 1001,
+    "conversationId": "conv-123",
+    "role": "user",
+    "content": "请帮我看一下登录接口的安全性问题？",
+    "sources": null,
+    "createdAt": "2025-11-16T12:01:00"
+  }
+}
+```
+
+**GET /api/v1/chat/{conversationId}/messages**
+```json
+// 响应
+{
+  "code": 200,
+  "data": [
+    {
+      "id": 1001,
+      "conversationId": "conv-123",
+      "role": "user",
+      "content": "请帮我看一下登录接口的安全性问题？",
+      "sources": null,
+      "createdAt": "2025-11-16T12:01:00"
+    }
+  ]
+}
+```
+
 ### Python API (端口8000)
 
 #### 代码问答接口
@@ -688,6 +771,23 @@ CREATE TABLE review_tasks (
 ```
 
 ---
+
+## 对话系统数据模型（实现版）
+
+> 注意：本节描述的是当前代码和数据库实际使用的对话相关表结构，用于补充上文的示例设计。
+
+```mermaid
+flowchart LR
+  User["users"] -->|发起/拥有| Conv["conversations"]
+  Project["projects"] -->|关联对话| Conv
+  Conv -->|包含消息| Msg["messages"]
+  Msg -->|引用代码| CodeRef["code_references"]
+```
+
+- `conversations`：按项目和用户维度存储会话元数据，字段包括 `id`、`project_id`、`user_id`、`title`、`deleted`、`created_at`、`updated_at` 等。
+- `messages`：存储具体对话消息，字段包括 `id`、`conversation_id`、`role`（`user/assistant`）、`content`、`sources`（JSONB）、`deleted`、`created_at`、`updated_at` 等。
+- `code_references`：按消息记录代码引用，字段包括 `id`、`message_id`、`file_path`、`start_line`、`end_line`、`deleted`、`created_at`、`updated_at` 等。
+- 所有表的 `updated_at` 字段通过通用触发器 `update_updated_at_column` 自动维护，`deleted` 字段统一作为逻辑删除标记。
 
 ## 部署指南
 

@@ -17,25 +17,26 @@
   - 提供基础组件规范（BrutButton, BrutCard, BrutInput等）
   - 添加可访问性要求和 Do/Don't 清单
 
+- ✅ **对话系统数据模型（会话 / 消息 / 代码引用）** (2025-11-16)
+  - 在 PostgreSQL 中新增 `conversations`、`messages`、`code_references` 三张表及核心索引
+  - 在 `java-service/user-service` 中新增对应实体和 Mapper（Conversation / Message / CodeReference）
+  - 在 `PROJECTWIKI.md` 中补充“对话系统数据模型（实现版）”小节及 Mermaid 图，作为最新实现的权威描述
+
 ### 变更 (Changed)
-- ✅ **降级到Java 8和Spring Boot 2.7** (2025-11-16)
-  - Spring Boot: 3.2.0 → 2.7.18
-  - Java版本: 17 → 8 (1.8)
-  - 原因: 服务器现有Java 8环境,无外网访问无法下载JDK 17
-  - 影响: 功能完全不受影响,只是版本调整
-- ✅ **更换Swagger框架** (2025-11-16)
-  - Springdoc OpenAPI → Springfox 3.0.0
-  - 原因: Springfox适配Spring Boot 2.x
-  - 访问地址变更: /swagger-ui.html → /swagger-ui/
+- ✅ **技术栈版本确认** (2025-11-16)
+  - Spring Boot: 2.7.18
+  - Java版本: 17
+  - OpenAPI 文档: Springdoc OpenAPI UI 1.7.0
+  - 理由: 兼顾稳定性与现代特性，生态成熟
 - ✅ **调整JWT版本** (2025-11-16)
-  - JJWT: 0.12.3 → 0.11.5 (兼容Java 8)
+  - JJWT: 0.12.3 → 0.11.5（与 Boot 2.7 组合稳定）
 
 ### 技术决策
-#### 为什么选择降级到Java 8?
-1. **服务器环境限制**: CentOS 7服务器已有Java 8,无外网访问
-2. **快速启动**: 避免复杂的环境配置,立即开始开发
-3. **功能无损**: Spring Boot 2.7功能完整,满足项目需求
-4. **后期可升级**: 代码兼容性好,未来可轻松升级到Java 17
+#### 版本与框架选择
+1. **稳定优先**: Spring Boot 2.7.x 生态成熟、资料丰富
+2. **现代语言特性**: Java 17 LTS，长期支持
+3. **文档与兼容**: Springdoc OpenAPI 1.7.x 与 Boot 2.7 组合稳定
+4. **迁移路径**: 后续可平滑升级至 Boot 3.x + 新 Security DSL
 
 #### 前端技术选型 (2025-11-16)
 **技术栈**: React 18 + TypeScript + Tailwind CSS + Vite
@@ -66,6 +67,9 @@
 - [ ] 单元测试框架搭建
 
 ---
+
+### 备注（对话 API）
+- Java 对话 API（ChatController + ChatService 初版）已实现，详见 PROJECTWIKI.md 中的 Chat API 小节。
 
 ## [0.1.0] - 2025-11-15
 

@@ -75,3 +75,35 @@ docker-compose.override.yml
 tmp/
 temp/
 *.tmp
+
+# --- Root-level Maven dependency dirs accidentally committed ---
+/aopalliance/
+/asm/
+/ch/
+/com/
+/commons-io/
+/io/
+/jakarta/
+/javax/
+/junit/
+/net/
+/org/
+/classworlds/
+/backport-util-concurrent/
+
+# Node and build artifacts (ensure across packages)
+**/node_modules/
+**/dist/
+**/.next/
+**/out/
+
+# Python virtualenv and caches
+agent-service/venv/
+**/__pycache__/
+**/.pytest_cache/
+*.pyc
+
+# Ensure env files are ignored globally (keep examples)
+**/.env
+**/.env.local
+!**/.env.example
