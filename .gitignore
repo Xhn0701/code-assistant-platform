@@ -107,3 +107,6 @@ agent-service/venv/
 **/.env
 **/.env.local
 !**/.env.example
+
+# Editor/backup suffixes
+*.bak
