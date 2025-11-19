@@ -926,3 +926,30 @@ OPENAI_API_KEY=<your-api-key>
   }
 }
 ```
+
+---
+
+模块说明补充：project-service（目录修复完成）
+
+#### 2. project-service (项目服务)
+
+已将异常目录（如 `{src`, `{src\\main`, `{src\\main\\resources}` 等）修复为标准 Maven 结构，并创建最小可运行骨架：
+
+```
+project-service/
+├── pom.xml
+└── src/
+    ├── main/
+    │   ├── java/
+    │   │   └── com/codeassistant/project/
+    │   │       └── ProjectServiceApplication.java
+    │   └── resources/
+    │       └── application.yml
+    └── test/
+        └── java/
+```
+
+说明：
+- Spring Boot 2.7.18 + Java 17 + Springdoc 1.7.x（与 user-service 保持一致）
+- 端口默认 8081（application.yml 可根据 docker-compose 配置调整）
+- 后续按需补充 controller/service/mapper/entity 等模块

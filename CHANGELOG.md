@@ -432,3 +432,6 @@
 ---
 
 **最后更新**: 2025-11-15
+
+### Fixed（修复）
+- （[未发布]）修复 `java-service/project-service` 异常目录名（如 `{src`, `{src\\main`, `{src\\main\\resources}` 等），重建为标准 Maven 结构并提供最小骨架（`pom.xml`、`ProjectServiceApplication.java`、`application.yml`）。
