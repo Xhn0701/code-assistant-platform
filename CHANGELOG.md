@@ -10,6 +10,11 @@
 ## [未发布] - 开发中
 
 ### 新增 (Added)
+- ✅ **Chat API（对话与消息）实现** (2025-11-19)
+  - Java：新增 ChatController/Service/DTO/实体/Mapper；实现对话创建、列表、消息发送、历史查询与分页
+  - DB：新增 V3 迁移脚本，创建 `conversations`、`messages`、`code_references` 表与必要索引/触发器
+  - 文档：`PROJECTWIKI.md` 补充“Chat API 分页接口”示例（见“附录：Chat API 补充”）
+  - 参考：Java API 文档“对话与消息接口（Chat API）”小节
 - ✅ **前端设计规范文档** (2025-11-16)
   - 创建 `docs/FRONTEND_DESIGN_SPEC.md`
   - 定义 Neo-Brutalism 设计系统

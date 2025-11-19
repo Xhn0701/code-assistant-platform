@@ -896,3 +896,33 @@ OPENAI_API_KEY=<your-api-key>
 
 **最后更新**: 2025-11-15
 **维护者**: [Your Name]
+
+---
+
+附录：Chat API 补充（实现对齐）
+
+- 已实现分页查询消息接口：
+
+**GET /api/v1/chat/{conversationId}/messages/paged**
+- Query: `pageNum`（默认1，从1开始），`pageSize`（默认50）
+```json
+// 响应
+{
+  "code": 200,
+  "data": {
+    "records": [
+      {
+        "id": 1001,
+        "conversationId": "conv-123",
+        "role": "user",
+        "content": "请帮我看一下登录接口的安全性问题？",
+        "sources": null,
+        "createdAt": "2025-11-16T12:01:00"
+      }
+    ],
+    "current": 1,
+    "size": 50,
+    "total": 1
+  }
+}
+```
