@@ -32,6 +32,9 @@ python -m venv venv
 source venv/Scripts/activate
 # Windows CMD:
 venv\Scripts\activate.bat
+# Windows powershell
+.\venv\Scripts\Activate.ps1
+
 # Linux/Mac:
 source venv/bin/activate
 
