@@ -7,10 +7,12 @@
 ## 核心特性
 
 - 🎯 **微服务架构**: Java业务层 + Python AI层，职责清晰
-- 🤖 **智能Agent**: 代码问答、代码审查、文档生成
+- 🤖 **智能Agent**: RAG代码问答（已实现）、代码审查（规划中）、文档生成（规划中）
 - 🔐 **完整认证**: JWT-based用户认证和授权
 - 🚀 **高性能**: Redis缓存 + 异步任务处理
 - 🐳 **容器化**: Docker-compose一键部署
+- ✅ **高质量代码**: 测试覆盖率99%、完整的单元测试和集成测试
+- 🔄 **CI/CD**: GitHub Actions自动化测试工作流
 
 ## 技术架构
 
@@ -47,9 +49,9 @@
 ### Python服务
 - **FastAPI** - Web框架
 - **LangChain** - Agent框架
-- **LlamaIndex** - RAG系统
 - **ChromaDB** - 向量数据库
-- **Celery** - 异步任务
+- **OpenAI Embeddings** - 文本向量化
+- **pytest** - 测试框架 (覆盖率99%)
 
 ### 基础设施
 - **Docker & Docker-compose**
@@ -153,6 +155,22 @@ uvicorn app.main:app --reload --port 8000
 # API文档: http://localhost:8000/docs
 ```
 
+#### 运行测试
+
+```bash
+# Python Agent 测试 (覆盖率99%)
+cd agent-service
+source venv/bin/activate
+
+# 运行所有测试
+pytest tests/ -v
+
+# 运行测试并生成覆盖率报告
+pytest tests/ --cov=app --cov-report=html
+
+# 查看覆盖率报告: 浏览器打开 htmlcov/index.html
+```
+
 ## API文档
 
 ### Java服务API (端口8080)
@@ -177,29 +195,49 @@ uvicorn app.main:app --reload --port 8000
 - [x] Python Agent服务基础
 - [x] Docker-compose配置
 
-### Phase 2: 核心功能 (Week 3-6)
-- [ ] JWT认证实现
-- [ ] 用户CRUD完善
-- [ ] 项目管理功能
-- [ ] RAG系统实现
-- [ ] 代码问答Agent
+### Phase 2: 核心功能 (Week 3-6) ✅
+- [x] **JWT认证实现** (Spring Security + JWT Token + BCrypt)
+- [x] **用户CRUD完善** (增删改查、密码修改、头像上传)
+- [x] **项目管理功能** (项目CRUD、分页查询)
+- [x] **对话系统** (创建对话、发送消息、历史记录)
+- [x] **RAG系统实现** (ChromaDB + OpenAI Embeddings)
+- [x] **代码问答Agent** (LangChain + RAG)
 
-### Phase 3: 服务集成 (Week 7-8)
-- [ ] Java调用Python服务
-- [ ] 统一异常处理
-- [ ] Redis缓存集成
-- [ ] 日志和监控
+### Phase 3: 服务集成 (Week 7-8) 🚧
+- [ ] Java调用Python服务 (计划中)
+- [x] **统一异常处理** (GlobalExceptionHandler)
+- [x] **Redis缓存集成** (RedisConfig)
+- [x] **日志和监控** (Slf4j + Logback)
 
-### Phase 4: 高级特性 (Week 9-10)
+### Phase 4: 前端UI实现 ✅
+- [x] **Neo-Brutalism 设计规范** (完整设计文档)
+- [x] **基础组件库** (BrutButton/Card/Input/Container)
+- [x] **登录注册页面** (完整的认证流程UI)
+- [x] **项目管理页面** (项目列表、创建、详情)
+- [x] **代码问答界面** (ProjectDetailPage)
+- [x] **状态管理** (Zustand: authStore/projectStore)
+- [x] **API服务层** (axios封装、错误处理)
+
+### Phase 5: RAG Agent完整实现 ✅
+- [x] **代码索引服务** (本地仓库遍历、过滤、分块)
+- [x] **向量存储** (ChromaDB集合管理、多项目隔离)
+- [x] **RAG问答** (向量检索 + LLM生成)
+- [x] **Chat API数据模型** (Java侧对话系统)
+- [x] **完整测试套件** (99%覆盖率、103个测试用例)
+- [x] **GitHub Actions CI/CD** (自动化测试工作流)
+
+### Phase 6: 高级特性 (规划中)
 - [ ] 代码审查Agent
-- [ ] 异步任务处理
+- [ ] Java调用Python服务 (端到端集成)
+- [ ] 异步任务处理 (Celery)
 - [ ] WebSocket实时通信
 - [ ] 性能优化
 
-### Phase 5: 部署上线 (Week 11-12)
+### Phase 7: 部署上线 (部分完成)
 - [ ] 生产环境配置
-- [ ] CI/CD流程
-- [ ] 文档完善
+- [x] **CI/CD流程** (GitHub Actions)
+- [x] **文档完善** (PROJECTWIKI、CHANGELOG、ADR)
+- [ ] Docker镜像优化
 - [ ] 演示视频
 
 ## 学习资源

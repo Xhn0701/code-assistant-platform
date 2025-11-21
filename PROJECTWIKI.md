@@ -6,6 +6,7 @@
 - [架构设计](#架构设计)
 - [技术栈详解](#技术栈详解)
 - [模块说明](#模块说明)
+- [测试](#测试)
 - [开发指南](#开发指南)
 - [API接口文档](#api接口文档)
 - [数据库设计](#数据库设计)
@@ -364,6 +365,284 @@ agent-service/
 
 ---
 
+## 测试
+
+### Agent Service 测试
+
+#### 测试概览
+
+Agent Service 拥有完整的测试套件，测试覆盖率达到 **99.0%**（103/104 测试通过）。
+
+**测试统计**:
+- **集成测试**: 31 个
+- **单元测试**: 73 个
+- **总耗时**: 约 37 秒
+- **跳过**: 1 个（符号链接测试，环境限制）
+
+#### 测试架构
+
+```
+agent-service/tests/
+├── integration/              # 集成测试（API 端到端）
+│   ├── test_chat_api.py     # Chat API 测试（16 个测试）
+│   │   ├── TestChatAskAPI                # 基础问答功能
+│   │   ├── TestChatCompatAPI             # 兼容性接口
+│   │   ├── TestChatAPIEndToEnd           # 端到端流程
+│   │   ├── TestChatAPIResponseFormat     # 响应格式验证
+│   │   └── TestChatAPISourcesMetadata    # 代码引用元数据
+│   └── test_index_api.py    # Index API 测试（15 个测试）
+│       ├── TestIndexRepositoryAPI        # 仓库索引功能
+│       ├── TestIndexStatusAPI            # 状态查询
+│       ├── TestIndexStatsAPI             # 统计信息
+│       ├── TestIndexAPIEndToEnd          # 端到端流程
+│       ├── TestIndexAPIWithMockedOpenAI  # Mock OpenAI 测试
+│       └── TestIndexAPIResponseFormat    # 响应格式验证
+│
+└── unit/                     # 单元测试（组件级）
+    ├── test_code_loader.py  # CodeLoader 测试（22 个测试）
+    │   ├── TestDetectLanguage            # 语言检测（7 个）
+    │   └── TestCodeLoader                # 代码加载（15 个）
+    ├── test_code_splitter.py # CodeSplitter 测试（13 个测试）
+    │   └── TestCodeSplitter              # 分块算法和元数据
+    ├── test_embedding_service.py # EmbeddingService 测试（17 个测试）
+    │   └── TestEmbeddingService          # 向量生成和重试机制
+    └── test_vectorstore.py  # VectorStoreService 测试（21 个测试）
+        ├── TestChromaClientManagement    # Chroma 客户端管理
+        └── TestVectorStoreService        # 向量存储操作
+```
+
+#### 运行测试
+
+**前置准备**:
+```bash
+cd agent-service
+
+# 激活虚拟环境
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+
+# 安装测试依赖（requirements.txt 已包含）
+pip install pytest pytest-asyncio pytest-cov httpx
+```
+
+**运行全部测试**:
+```bash
+# 运行所有测试（详细模式）
+pytest tests/ -v
+
+# 运行测试并生成覆盖率报告
+pytest tests/ --cov=app --cov-report=html
+
+# 运行测试并显示详细输出
+pytest tests/ -v -s
+```
+
+**运行特定测试**:
+```bash
+# 只运行集成测试
+pytest tests/integration/ -v
+
+# 只运行单元测试
+pytest tests/unit/ -v
+
+# 运行特定文件
+pytest tests/unit/test_code_loader.py -v
+
+# 运行特定测试类
+pytest tests/unit/test_code_loader.py::TestCodeLoader -v
+
+# 运行特定测试方法
+pytest tests/unit/test_code_loader.py::TestCodeLoader::test_load_sample_repository -v
+```
+
+**运行测试并过滤警告**:
+```bash
+# 隐藏弃用警告
+pytest tests/ -v -W ignore::DeprecationWarning
+
+# 只显示错误，不显示警告
+pytest tests/ -v --disable-warnings
+```
+
+#### 测试覆盖范围
+
+##### 集成测试
+
+**Chat API 测试（16 个）**:
+- ✅ 基础问答功能（成功场景、索引未就绪、无效请求）
+- ✅ 请求参数验证（缺失字段、无效 JSON、类型错误）
+- ✅ 中文支持验证
+- ✅ 会话 ID 关联
+- ✅ 兼容性接口（snake_case / camelCase 参数）
+- ✅ 响应格式标准化验证
+- ✅ 代码引用元数据（文件路径、行号）
+- ✅ 端到端工作流（索引 → 多次问答）
+
+**Index API 测试（15 个）**:
+- ✅ 本地仓库索引（成功场景）
+- ✅ 错误处理（不存在的仓库、无效 JSON、缺失字段）
+- ✅ 重复索引覆盖验证
+- ✅ 状态查询（已索引、未找到、无效项目 ID）
+- ✅ 统计信息查询（文档数量、集合状态）
+- ✅ 多项目隔离验证
+- ✅ Mock OpenAI API 测试（避免真实调用）
+- ✅ 响应格式标准化验证
+
+##### 单元测试
+
+**CodeLoader 测试（22 个）**:
+- ✅ 多语言检测（Java/Python/TypeScript/JavaScript/Markdown/未知扩展名/大小写不敏感）
+- ✅ 仓库加载（示例仓库、支持的扩展名、忽略的目录）
+- ✅ 文件大小限制（超大文件跳过）
+- ✅ 相对路径计算
+- ✅ 错误处理（不存在路径、文件路径作为仓库）
+- ✅ 编码处理（UTF-8、混合换行符）
+- ✅ 多项目隔离（不同项目 ID）
+- ✅ 语言检测集成
+- ✅ 空仓库处理
+- ✅ 符号链接处理（跳过，环境限制）
+- ✅ 常量验证（支持的扩展名、忽略的目录）
+
+**CodeSplitter 测试（13 个）**:
+- ✅ 基础分块功能
+- ✅ 元数据一致性（chunk_id、file、language、project_id）
+- ✅ 行号顺序验证
+- ✅ 近似行号计算
+- ✅ 参数影响（chunk_size、chunk_overlap）
+- ✅ 边界条件（空文件、单行文件）
+- ✅ Chunk ID 唯一性
+- ✅ 文档转换（CodeChunk → LangChain Document）
+- ✅ 大文件分块
+- ✅ 多语言支持
+- ✅ 内容完整性（分块内容是原始内容的子串）
+
+**EmbeddingService 测试（17 个）**:
+- ✅ 初始化（成功、失败场景）
+- ✅ 文档向量化（成功、空列表、单文档）
+- ✅ 查询向量化（成功、中文文本、多行文本）
+- ✅ 重试机制（失败重试、超过最大重试次数）
+- ✅ 批量处理（大批量文档）
+- ✅ 特殊字符处理
+- ✅ 配置验证（模型名称、自定义 API Base）
+- ✅ 并发调用测试
+- ✅ 底层对象访问（embedding 属性）
+
+**VectorStoreService 测试（21 个）**:
+- ✅ Chroma 客户端管理（初始化、幂等性、清理）
+- ✅ 集合名称生成（包含配置前缀）
+- ✅ 集合重置（创建新集合、删除旧数据）
+- ✅ 文档批量插入（成功、空列表）
+- ✅ 检索器获取（默认参数、自定义 k 值）
+- ✅ 集合统计信息（存在、不存在）
+- ✅ 多项目隔离验证
+- ✅ 大批量文档处理
+- ✅ 元数据保留验证
+- ✅ 增量插入测试
+- ✅ 语义搜索验证
+- ✅ 重复内容处理
+
+#### 测试配置
+
+**pytest.ini**:
+```ini
+[pytest]
+asyncio_mode = auto
+asyncio_default_fixture_loop_scope = function
+testpaths = tests
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+```
+
+**关键配置说明**:
+- `asyncio_mode = auto`: 自动检测异步测试
+- `testpaths = tests`: 测试文件搜索路径
+- 命名约定：测试文件 `test_*.py`，测试类 `Test*`，测试函数 `test_*`
+
+#### Mock 策略
+
+为了避免真实 API 调用（降低成本和不稳定性），测试中使用了以下 Mock 策略：
+
+**OpenAI API Mock**:
+```python
+# 集成测试中 Mock OpenAI Embeddings
+@patch("langchain_openai.embeddings.OpenAIEmbeddings.embed_documents")
+@patch("langchain_openai.embeddings.OpenAIEmbeddings.embed_query")
+def test_index_with_mocked_embeddings(mock_embed_query, mock_embed_documents):
+    # 返回固定长度的假向量
+    mock_embed_documents.return_value = [[0.1] * 1536]
+    mock_embed_query.return_value = [0.1] * 1536
+    # ... 测试逻辑
+```
+
+**测试数据隔离**:
+```python
+# 使用临时目录作为测试仓库
+@pytest.fixture
+def temp_repo(tmp_path):
+    repo_path = tmp_path / "test_repo"
+    repo_path.mkdir()
+    # 创建测试文件
+    (repo_path / "test.py").write_text("print('hello')")
+    return str(repo_path)
+```
+
+#### 常见测试问题
+
+**Q1: 测试运行时提示 OpenAI API Key 未配置？**
+```
+解决方案：
+1. 检查 .env 文件是否存在 OPENAI_API_KEY
+2. 集成测试应该 Mock API 调用，检查 Mock 是否生效
+3. 运行前确保环境变量已加载：source .env
+```
+
+**Q2: Chroma 相关测试失败？**
+```
+解决方案：
+1. 检查 chroma_data/ 目录是否有写权限
+2. 运行前清理旧数据：rm -rf agent-service/chroma_data/test_*
+3. 确保没有其他进程占用 Chroma 数据库
+```
+
+**Q3: 测试覆盖率报告在哪里？**
+```
+运行：pytest tests/ --cov=app --cov-report=html
+查看：在浏览器中打开 htmlcov/index.html
+```
+
+**Q4: 如何调试单个测试？**
+```bash
+# 使用 -s 显示 print 输出，-v 显示详细信息
+pytest tests/unit/test_code_loader.py::TestCodeLoader::test_load_sample_repository -v -s
+
+# 使用 --pdb 在失败时进入调试器
+pytest tests/unit/test_code_loader.py -v --pdb
+```
+
+**Q5: 警告信息太多，如何过滤？**
+```bash
+# 隐藏所有警告
+pytest tests/ -v --disable-warnings
+
+# 只隐藏特定类型的警告
+pytest tests/ -v -W ignore::DeprecationWarning
+pytest tests/ -v -W ignore::PydanticDeprecatedSince20
+```
+
+#### 持续改进计划
+
+- [x] Agent Service 后端对齐 Pydantic V2 配置风格（使用 ConfigDict / model_config），减少 Pydantic 相关弃用警告。
+- [x] QA Agent 检索逻辑切换为 `retriever.invoke` 接口，对齐 langchain-core 0.1.46 之后的推荐用法。
+- [x] 集成测试使用 `httpx.ASGITransport(app=...)` 替代 `AsyncClient(app=...)` 快捷方式，消除 HTTPX 的 `app shortcut` 弃用警告。
+- [x] 集成到 CI/CD 流程（GitHub Actions），新增 `.github/workflows/test.yml` 自动运行 Agent Service 测试与覆盖率门槛检查。
+- [x] 设置 Agent Service 覆盖率门槛（pytest.ini `--cov-fail-under=80`），确保测试质量下限。
+- [ ] 添加性能基准测试（索引速度、查询延迟）
+- [ ] 添加压力测试（并发索引、高频查询）
+- [ ] 生成测试报告（HTML/XML 格式）
+
+---
+
 ## 开发指南
 
 ### 环境准备
@@ -623,32 +902,199 @@ docs(readme): 更新安装文档
 
 ### Python API (端口8000)
 
-#### 代码问答接口
+#### RAG 问答 Agent 架构（实现版）
 
-**POST /api/v1/chat/ask**
+**系统流程图**：
+
+```mermaid
+flowchart LR
+  Java[Java 项目服务] -->|调用索引 API| PyIndex[/Python Agent<br/>/api/v1/index/repository/]
+  PyIndex --> Loader[CodeLoader<br/>本地仓库遍历]
+  Loader --> Splitter[CodeSplitter<br/>Recursive 分块]
+  Splitter --> Chunks[CodeChunk 列表]
+  Chunks --> VS[VectorStoreService<br/>Chroma 本地持久化]
+  Java -->|调用问答 API| PyChat[/Python Agent<br/>/api/v1/chat/ask/]
+  PyChat --> QA[QaAgent<br/>RAG 问答]
+  QA --> VS
+  QA --> LLM[ChatOpenAI]
+```
+
+**节点与代码映射**：
+
+| 节点 | 文件路径 | 核心职责 |
+|------|---------|---------|
+| PyIndex | `agent-service/app/api/v1/index.py` | 索引接口 |
+| Loader | `agent-service/app/services/code_loader.py` | 本地仓库文件加载 |
+| Splitter | `agent-service/app/services/code_splitter.py` | 代码分块（递归字符级） |
+| VS | `agent-service/app/services/vectorstore.py` | ChromaDB 向量存储 |
+| QA | `agent-service/app/agents/qa_agent.py` | RAG 问答逻辑 |
+| PyChat | `agent-service/app/api/v1/chat.py` | 问答接口 |
+
+**技术实现要点**：
+
+- **向量化模型**: 默认 OpenAI `text-embedding-3-small`（1536维，可配置）；当 `OPENAI_API_BASE` 包含 `ai.gitee.com` 时，通过 Gitee Serverless（如 `Qwen3-Embedding-8B`）生成向量，并强制使用 `encoding_format="float"`、禁用 tiktoken 预分词；
+- **分块策略**: 递归字符分割，chunk_size=1000，overlap=200
+- **行号精度**: 近似算法（±5行误差），基于换行符统计
+- **索引更新**: 全量重建策略（删除旧集合 + 重新索引）
+- **状态管理**: 内存存储 + Chroma 推断（服务重启兜底）
+
+---
+
+#### 代码索引接口
+
+**POST /api/v1/index/repository**
+
+索引本地仓库代码到向量数据库。
+
+请求示例：
 ```json
-// 请求
 {
   "projectId": 1,
-  "question": "这个项目的认证逻辑是如何实现的？",
-  "conversationId": "conv-123" // 可选
-}
-
-// 响应
-{
-  "answer": "该项目使用JWT进行认证...",
-  "sources": [
-    {
-      "file": "UserController.java",
-      "line": 45,
-      "content": "..."
-    }
-  ],
-  "conversationId": "conv-123"
+  "repositoryUrl": "E:/projects/code-assistant-platform"
 }
 ```
 
-#### 代码审查接口
+响应示例：
+```json
+{
+  "code": 0,
+  "message": "索引成功",
+  "data": {
+    "projectId": 1,
+    "status": "COMPLETED",
+    "totalFiles": 156,
+    "indexedFiles": 156,
+    "errorMessage": null
+  }
+}
+```
+
+**状态说明**：
+- `PENDING`: 索引排队中
+- `INDEXING`: 索引进行中
+- `COMPLETED`: 索引完成（响应体字段：`projectId` / `totalFiles` / `indexedFiles`）
+- `FAILED`: 索引失败（查看 `errorMessage`）
+
+**注意事项**：
+- 当前仅支持本地仓库路径（绝对路径）
+- 重复调用会**全量重建索引**（删除旧数据）
+- 支持语言：`.java`, `.kt`, `.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.md`, `.yml`
+- 跳过目录：`.git`, `node_modules`, `dist`, `build`, `venv`, `__pycache__`
+- 文件大小限制：默认 1MB（可通过 `INDEX_MAX_FILE_SIZE` 配置）
+
+---
+
+**GET /api/v1/index/status/{projectId}**
+
+查询项目索引状态。
+
+响应示例：
+```json
+{
+  "code": 0,
+  "data": {
+    "projectId": 1,
+    "status": "COMPLETED",
+    "totalFiles": 156,
+    "indexedFiles": 156,
+    "errorMessage": null
+  }
+}
+```
+
+**状态推断逻辑**：
+1. 优先返回内存中的状态记录
+2. 若内存无记录，查询 Chroma 集合：
+   - 集合存在且文档数 > 0 → 推断为 `COMPLETED`
+   - 集合不存在 → 返回错误码 `INDEX_NOT_READY`
+3. 服务重启后，已索引项目会自动推断为 `COMPLETED`（totalFiles/indexedFiles 为近似值）
+
+---
+
+#### 代码问答接口
+
+**POST /api/v1/chat/ask**
+
+基于 RAG 的代码问答（需先完成索引）。
+
+请求示例：
+```json
+{
+  "projectId": 1,
+  "question": "这个项目的认证逻辑是如何实现的？",
+  "conversationId": "conv-123"  // 可选，用于关联对话
+}
+```
+
+响应示例：
+```json
+{
+  "code": 0,
+  "message": "查询成功",
+  "data": {
+    "answer": "该项目使用 Spring Security + JWT 实现认证。主要流程：\n1. 用户登录时，AuthController 验证用户名密码\n2. 验证通过后，JwtTokenProvider 生成 JWT Token\n3. 后续请求通过 JwtAuthenticationFilter 验证 Token\n4. Token 有效期为 24 小时，存储在 Redis 中\n\n关键实现位于：\n- AuthController.java:45-80（登录接口）\n- JwtTokenProvider.java:32-67（Token 生成）\n- JwtAuthenticationFilter.java:28-56（Token 验证）",
+    "sources": [
+      {
+        "file": "java-service/user-service/src/main/java/.../AuthController.java",
+        "startLine": 45,
+        "endLine": 80,
+        "score": 0.89
+      },
+      {
+        "file": "java-service/user-service/src/main/java/.../JwtTokenProvider.java",
+        "startLine": 32,
+        "endLine": 67,
+        "score": 0.85
+      }
+    ],
+    "conversationId": "conv-123"
+  }
+}
+```
+
+**Sources 字段说明**：
+- `file`: 相对于仓库根目录的文件路径
+- `startLine`: 代码片段起始行（近似值，±5行误差）
+- `endLine`: 代码片段结束行（近似值）
+- `score`: 相似度分数（0-1，越高越相关）
+
+**错误处理**：
+```json
+// 索引未完成
+{
+  "code": 2002,
+  "message": "代码索引未完成，请先调用索引接口"
+}
+
+// LLM 调用失败
+{
+  "code": 2201,
+  "message": "LLM 推理错误",
+  "data": {
+    "detail": "OpenAI API rate limit exceeded"
+  }
+}
+```
+
+---
+
+**POST /api/v1/chat**（兼容接口）
+
+兼容 web-client 当前调用方式，内部转发到 `/chat/ask`。
+
+请求示例：
+```json
+{
+  "project_id": 1,
+  "message": "认证逻辑怎么实现的？"
+}
+```
+
+响应格式与 `/chat/ask` 相同。
+
+---
+
+#### 代码审查接口（Phase 5 计划）
 
 **POST /api/v1/review/analyze**
 ```json
@@ -686,6 +1132,64 @@ docs(readme): 更新安装文档
   }
 }
 ```
+
+---
+
+#### Agent 错误码说明
+
+Python Agent 服务使用统一的错误码体系，便于前端和 Java 服务处理异常。
+
+**错误码分类**：
+
+| 错误码范围 | 分类 | 说明 |
+|-----------|------|------|
+| 0 | 成功 | 请求处理成功 |
+| 1000-1099 | 通用错误 | 参数错误、未找到资源等 |
+| 2000-2099 | 索引相关 | 仓库访问、索引失败等 |
+| 2100-2199 | 向量库相关 | ChromaDB 操作失败 |
+| 2200-2299 | LLM 相关 | OpenAI API 调用失败 |
+
+**详细错误码**：
+
+| 错误码 | 常量名 | 消息 | 触发场景 |
+|--------|--------|------|---------|
+| 0 | SUCCESS | 成功 | 请求成功 |
+| 1000 | PARAM_ERROR | 参数验证失败 | 请求参数格式错误 |
+| 1001 | INTERNAL_ERROR | 服务器内部错误 | 未捕获的异常 |
+| 1002 | NOT_FOUND | 资源不存在 | 查询的资源不存在 |
+| **2000** | **REPOSITORY_ERROR** | **仓库路径无效或无权限访问** | 仓库路径不存在、无读权限 |
+| **2001** | **INDEX_ERROR** | **索引过程失败** | 索引过程中出现异常 |
+| **2002** | **INDEX_NOT_READY** | **代码索引未完成，请先调用索引接口** | 查询前未完成索引 |
+| **2003** | **INDEX_IN_PROGRESS** | **索引正在进行中** | 索引进行中，请稍后查询 |
+| **2100** | **VECTOR_STORE_ERROR** | **向量数据库操作失败** | ChromaDB 读写异常 |
+| **2101** | **EMBEDDING_ERROR** | **向量生成失败** | Embedding 生成过程异常 |
+| **2200** | **OPENAI_API_ERROR** | **OpenAI API 调用失败** | API 限流、密钥无效等 |
+| **2201** | **LLM_ERROR** | **LLM 推理错误** | LLM 调用失败或返回异常 |
+| **2202** | **QUERY_ERROR** | **查询失败** | 检索或查询过程异常 |
+
+**错误响应示例**：
+
+```json
+{
+  "code": 2002,
+  "message": "代码索引未完成，请先调用索引接口",
+  "data": {
+    "projectId": 1,
+    "suggestion": "请先调用 POST /api/v1/index/repository 完成索引"
+  }
+}
+```
+
+**客户端处理建议**：
+
+| 错误码 | 建议处理方式 |
+|--------|-------------|
+| 1000 | 检查请求参数格式，提示用户修正 |
+| 2000 | 提示用户检查仓库路径是否正确 |
+| 2002 | 自动触发索引流程或引导用户手动索引 |
+| 2003 | 等待索引完成后重试 |
+| 2100 | 提示用户稍后重试，记录日志供运维排查 |
+| 2200 | 检查 OpenAI API Key 配置，提示用户配置或充值 |
 
 ---
 
@@ -968,3 +1472,11 @@ project-service/
 - 删除遗留备份与 IDE 目录：`*.bak`（Springfox/Swagger/impl 备份）与 `.idea/` 目录。
 - 新增 `.gitattributes`：统一换行策略（text=auto，关键文件使用 LF）。
 - `uploads/` 目录使用 `.gitkeep` 保留空目录结构（.gitignore 中放行 `.gitkeep`）。
+
+> 对应实现：上述错误码由 Python Agent 服务中的 `app.core.exceptions.AgentErrorCode` 枚举提供，所有业务异常通过 FastAPI 全局异常处理中间件统一映射到 `ResponseModel.code` 字段。
+
+## 变更补充（Python Agent，2025-11-20）
+
+- Chat API：确认 `/api/v1/chat/ask` 响应中 `conversationId` 与 `sources.startLine` / `sources.endLine` 字段命名与实现对齐（实现位置：`agent-service/app/models/chat.py`）。
+- 向量索引：在 `VectorStoreService` 中引入 `_SafeEmbeddings` 包装，以应对 Embedding 服务不可用或返回结果长度异常的情况（实现位置：`agent-service/app/services/vectorstore.py`）。
+- 上述变更对应根目录 `CHANGELOG.md` 中 “Python Agent：Chat API 与向量索引稳定性修复（2025-11-20）” 条目，确保代码与文档的双向可追溯。

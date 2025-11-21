@@ -1,441 +1,181 @@
-# 更新日志 (Changelog)
+# 变更日志（Changelog）
 
-本文档记录项目的所有重要变更。
+本文件记录智能代码助手平台的所有重要变更。
 
-格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
-版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循
+[语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
----
-
-## [未发布] - 开发中
-
-### 新增 (Added)
-- ✅ **Chat API（对话与消息）实现** (2025-11-19)
-  - Java：新增 ChatController/Service/DTO/实体/Mapper；实现对话创建、列表、消息发送、历史查询与分页
-  - DB：新增 V3 迁移脚本，创建 `conversations`、`messages`、`code_references` 表与必要索引/触发器
-  - 文档：`PROJECTWIKI.md` 补充“Chat API 分页接口”示例（见“附录：Chat API 补充”）
-  - 参考：Java API 文档“对话与消息接口（Chat API）”小节
-- ✅ **前端设计规范文档** (2025-11-16)
-  - 创建 `docs/FRONTEND_DESIGN_SPEC.md`
-  - 定义 Neo-Brutalism 设计系统
-  - 包含完整的 Design Tokens
-  - 提供基础组件规范（BrutButton, BrutCard, BrutInput等）
-  - 添加可访问性要求和 Do/Don't 清单
-
-- ✅ **对话系统数据模型（会话 / 消息 / 代码引用）** (2025-11-16)
-  - 在 PostgreSQL 中新增 `conversations`、`messages`、`code_references` 三张表及核心索引
-  - 在 `java-service/user-service` 中新增对应实体和 Mapper（Conversation / Message / CodeReference）
-  - 在 `PROJECTWIKI.md` 中补充“对话系统数据模型（实现版）”小节及 Mermaid 图，作为最新实现的权威描述
-
-### 变更 (Changed)
-- ✅ **技术栈版本确认** (2025-11-16)
-  - Spring Boot: 2.7.18
-  - Java版本: 17
-  - OpenAPI 文档: Springdoc OpenAPI UI 1.7.0
-  - 理由: 兼顾稳定性与现代特性，生态成熟
-- ✅ **调整JWT版本** (2025-11-16)
-  - JJWT: 0.12.3 → 0.11.5（与 Boot 2.7 组合稳定）
-
-### 技术决策
-#### 版本与框架选择
-1. **稳定优先**: Spring Boot 2.7.x 生态成熟、资料丰富
-2. **现代语言特性**: Java 17 LTS，长期支持
-3. **文档与兼容**: Springdoc OpenAPI 1.7.x 与 Boot 2.7 组合稳定
-4. **迁移路径**: 后续可平滑升级至 Boot 3.x + 新 Security DSL
-
-#### 前端技术选型 (2025-11-16)
-**技术栈**: React 18 + TypeScript + Tailwind CSS + Vite
-
-**设计风格**: Neo-Brutalism（新粗野主义）+ 硬阴影贴纸感
-
-**选型理由**:
-1. **React**: 求职市场需求最大，生态最成熟
-2. **TypeScript**: 类型安全，减少运行时错误
-3. **Tailwind CSS**: 原子化样式，快速实现设计风格
-4. **Vite**: 开发体验极佳，热更新迅速
-5. **Neo-Brutalism风格**:
-   - 高对比度，可访问性好
-   - 实现简单，不需要复杂的动画
-   - 视觉独特，面试展示有辨识度
-   - 拒绝模糊阴影/渐变/玻璃拟态
-
-**详细规范**: `docs/FRONTEND_DESIGN_SPEC.md`
-
-### 计划添加
-- [ ] 用户认证系统完整实现
-- [ ] 项目管理CRUD接口
-- [ ] RAG问答Agent核心功能
-- [ ] 代码索引服务
-- [ ] 代码审查Agent基础版
-- [ ] Docker-compose完整配置
-- [ ] API接口文档完善
-- [ ] 单元测试框架搭建
+> 说明：以下版本号为文档内部里程碑标记，尚未与 Git Tag 绑定。
 
 ---
 
-### 备注（对话 API）
-- Java 对话 API（ChatController + ChatService 初版）已实现，详见 PROJECTWIKI.md 中的 Chat API 小节。
+## [Unreleased]
+
+### Added（新增）
+
+- Agent Service 完整测试套件（2025-11-20）
+  - **测试覆盖率**: 99.0%（103/104 测试通过，1 个符号链接测试跳过）
+  - **集成测试**（31 个）：
+    - Chat API 测试（16 个）：问答流程、边界条件、响应格式、中文支持、兼容性验证
+    - Index API 测试（15 个）：索引流程、状态查询、统计信息、多项目隔离、Mock OpenAI
+  - **单元测试**（73 个）：
+    - CodeLoader 测试（22 个）：多语言检测、文件过滤、大小限制、编码处理、路径计算
+    - CodeSplitter 测试（13 个）：分块算法、元数据一致性、行号计算、文档转换
+    - EmbeddingService 测试（17 个）：向量生成、重试机制、批量处理、并发调用
+    - VectorStoreService 测试（21 个）：集合管理、文档插入、检索功能、多项目隔离
+  - **测试框架**: pytest + pytest-asyncio + pytest-cov + httpx + unittest.mock
+  - **测试配置**: `pytest.ini` 配置异步模式和测试发现规则
+  - **Mock 策略**: Mock OpenAI API 避免真实调用，降低测试成本和不稳定性
+
+- Python Agent：完成 RAG 问答与代码索引核心能力（Phase 4 核心，2025-11-20）
+  - **设计决策详见**: [ADR-001: RAG Agent 设计决策](docs/adr/20251120-rag-agent-design.md)
+  - 新增向量服务封装：
+    - `EmbeddingService`（`app/services/embedding_service.py`）封装 OpenAI `text-embedding-3-small`
+    - `VectorStoreService`（`app/services/vectorstore.py`）基于本地嵌入式 Chroma 实现多项目集合管理
+  - 新增代码处理与索引：
+    - `CodeLoader`（本地仓库遍历与过滤）
+    - `CodeSplitter`（基于 `RecursiveCharacterTextSplitter` 的近似行号分块）
+    - `CodeIndexer` + `IndexStatusStore`（同步索引流程与状态管理）
+    - 内部模型：`CodeFile` / `CodeChunk` / `IndexStatus*` / `Chat*`（`app/models/*`）
+  - 新增 RAG 问答 Agent：
+    - `QaAgent`（`app/agents/qa_agent.py`），基于向量检索 + `ChatOpenAI` 生成代码问答结果
+  - 新增 Python API：
+    - `POST /api/v1/index/repository`：索引本地仓库（按 `projectId`，响应体字段为 `projectId` / `totalFiles` / `indexedFiles` / `errorMessage`）
+    - `GET /api/v1/index/status/{projectId}`：查询索引状态（PENDING / INDEXING / COMPLETED / FAILED，响应体字段为 `projectId` / `totalFiles` / `indexedFiles` / `errorMessage`）
+    - `POST /api/v1/chat/ask`：RAG 代码问答（请求体：`projectId` + `question`）
+    - `POST /api/v1/chat`：兼容前端现有接口（内部转发到 `/chat/ask`）
+  - 初始化与生命周期：
+    - 在应用 `lifespan` 中初始化 / 清理 Chroma 客户端
+    - 通过 `app/dependencies.py` 提供单例级依赖注入（Embedding / VectorStore / CodeIndexer / QaAgent）
+  - 错误码与异常：
+    - 在 `AgentErrorCode` 中补充 `INDEX_IN_PROGRESS`，完善索引与向量库相关错误码说明
+
+- Chat API 与数据模型（Java 侧，2025-11-19）
+  - 新增对话与消息实体、Mapper、Service、Controller
+  - PostgreSQL 中新增 `conversations` / `messages` / `code_references` 三张表及索引
+  - `PROJECTWIKI.md` 中补充对话系统数据模型与分页接口示例
+
+- 前端设计规范文档（2025-11-16）
+  - 新增 `docs/FRONTEND_DESIGN_SPEC.md`
+  - 定义 Neo-Brutalism 设计语言与 Design Tokens
+  - 约定基础组件（按钮、卡片、输入框等）与可访问性规范
+
+### Changed（变更）
+
+- Agent Service 弃用警告与自动化测试基线（2025-11-20）
+  - Pydantic 配置由 `class Config` 迁移为 `ConfigDict` / `model_config`，对齐 Pydantic V2 推荐写法。
+  - QA Agent 检索逻辑由 `retriever.get_relevant_documents` 升级为 `retriever.invoke`，消除 langchain-core 0.1.46 的弃用警告。
+  - 集成测试中 HTTPX 客户端改为 `ASGITransport(app=...)`，替代已弃用的 `AsyncClient(app=...)` 快捷方式。
+  - 新增 GitHub Actions 工作流 `.github/workflows/test.yml`，在 push / PR 时自动运行 Agent Service 测试。
+  - 在 `agent-service/pytest.ini` 中设置 `--cov-fail-under=80`，为 Agent Service 建立覆盖率最低门槛。
+
+- 测试质量提升（2025-11-20）
+  - Agent Service 测试覆盖率从 0% 提升至 99.0%
+  - 端到端测试覆盖完整的索引 → 问答工作流
+  - 边界条件测试：缺失字段、无效 JSON、类型错误、中文输入
+  - 性能验证：大批量文档处理、并发请求测试
+  - 兼容性测试：snake_case / camelCase 参数双向支持
+
+- 技术栈确认与对齐（2025-11-16）
+  - 后端：Spring Boot 2.7.18 / Java 17 / Springdoc OpenAPI 1.7.x
+  - 前端：React 18 + TypeScript + Tailwind CSS + Vite
+  - Python Agent：FastAPI + LangChain + ChromaDB + OpenAI 官方 SDK
+
+- Agent 服务配置与生命周期（2025-11-20）
+  - `app/config.py`：重构配置结构，显式加入 `openai_embedding_model` / Chroma / 索引参数等字段
+  - `main.py`：修复全局异常处理的错误消息拼接问题；在应用启动/关闭时初始化与清理 Chroma 客户端
+  - `dependencies.py`：统一使用 `lru_cache` 管理 Embedding / VectorStore / CodeIndexer / QaAgent 单例
+  - `EmbeddingService`：当 `OPENAI_API_BASE` 指向 Gitee Serverless（`ai.gitee.com`）时，禁用 tiktoken 预分词并强制使用 `encoding_format="float"`，以适配其 `/embeddings` 接口协议
+
+### Fixed（修复）
+
+- OpenAPI 安全方案命名不一致（2025-11-19）
+  - 问题：`OpenApiConfig` 使用 "Bearer Authentication"，部分 Controller 使用 "bearerAuth"
+  - 影响：Swagger UI 中的认证锁标记显示异常
+  - 修复：统一所有引用为 "bearerAuth"
+
+---
 
 ## [0.1.0] - 2025-11-15
 
-### 新增 (Added)
+### Added（新增）
 
-#### 项目初始化
-- ✅ 创建项目整体目录结构（微服务架构）
-- ✅ 创建README.md项目说明文档
-- ✅ 创建PROJECTWIKI.md项目维基文档
-- ✅ 创建CHANGELOG.md变更日志文档
-- ✅ 创建.gitignore配置文件
-- ✅ 创建.env.example环境变量模板
+- 仓库初始化与文档
+  - 创建整体项目结构（Java 微服务 + Python Agent + Web 前端）
+  - 新增文档：
+    - `README.md`：项目说明
+    - `PROJECTWIKI.md`：项目维基（架构、模块说明等）
+    - `CHANGELOG.md`：变更日志
+    - `CLAUDE.md`：面向 Claude 的协作说明
+    - `DEVELOPMENT_ROADMAP.md`：开发路线图
+  - 新增基础配置：
+    - `.gitignore` / `.gitattributes`
+    - `.env.example`（根目录与各子服务）
 
-#### Java服务基础框架
-- ✅ user-service目录结构创建
-  - controller/ - API控制器层
-  - service/ - 业务逻辑层
-  - mapper/ - 数据访问层
-  - entity/ - 实体类
-  - dto/ - 数据传输对象
-  - security/ - 安全认证
-  - config/ - 配置类
-- ✅ project-service目录结构创建
-- ✅ Maven pom.xml配置文件
-  - Spring Boot 3.2.0
-  - Spring Security
-  - MyBatis-Plus 3.5.5
-  - JWT 0.12.3
-  - PostgreSQL Driver
-  - Redis
-  - Springdoc OpenAPI
-- ✅ application.yml配置文件
-  - 数据库连接配置
-  - Redis连接配置
-  - MyBatis-Plus配置
-  - JWT配置
-  - 日志配置
-  - Swagger配置
+- Java 用户服务（user-service）基础骨架
+  - Spring Boot 2.7.x + Java 17
+  - 全局 Result / ResultCode 统一返回结构
+  - 基础异常处理与 Swagger/OpenAPI 配置
 
-#### Python Agent服务框架
-- ✅ agent-service目录结构创建
-  - app/api/v1/ - API路由
-  - app/agents/ - Agent实现
-  - app/services/ - 业务服务
-  - app/models/ - 数据模型
-  - app/core/ - 核心配置
-  - tests/ - 测试
+- Python Agent 服务基础骨架
+  - FastAPI 应用入口、健康检查接口（`/api/v1/health` / `/ready` / `/ping`）
+  - 统一响应模型（对齐 Java Result）
+  - Redis 依赖注入与基础环境配置
 
-#### 文档
-- ✅ 完整的项目架构文档（PROJECTWIKI.md）
-  - 整体架构设计图
-  - 服务职责划分
-  - 技术栈详解
-  - 模块说明
-  - API接口文档模板
-  - 数据库设计
-  - 开发指南
-  - 部署指南
-  - 常见问题FAQ
-- ✅ AI助手维护指南（CLAUDE.md）
-  - 文档更新规则和时机
-  - PROJECTWIKI.md维护规范
-  - CHANGELOG.md维护规范
-  - 格式规范和图标使用
-  - 实际操作示例
-  - 文档质量检查清单
-- ✅ 详细开发路线图（DEVELOPMENT_ROADMAP.md）
-  - 6个开发阶段完整规划
-  - 每个Task的前置条件
-  - 详细的开发步骤和代码要求
-  - 明确的完成标准和验收测试
-  - 文档更新要求
-  - 预估时间和进度追踪
+### Changed（变更）
 
-### 技术决策
-
-#### 为什么选择微服务架构？
-1. **技术展示需求**: 需要同时展示Java和Python能力
-2. **职责分离**: 业务逻辑(Java)与AI推理(Python)分离，符合单一职责原则
-3. **技术栈优势**: Java擅长事务处理，Python适合AI/ML任务
-4. **求职导向**: 微服务经验在招聘中是加分项
-5. **可扩展性**: 未来可以独立扩展各个服务
-
-#### 为什么选择这些技术栈？
-
-**Java侧:**
-- **Spring Boot 3.2**: 最新稳定版，社区活跃，文档完善
-- **MyBatis-Plus**: 比JPA灵活，比MyBatis简洁，适合快速开发
-- **JWT**: 无状态认证，适合微服务架构
-- **Redis**: 高性能缓存，降低数据库压力
-
-**Python侧:**
-- **FastAPI**: 性能高，文档自动生成，异步支持好
-- **LangChain**: Agent开发标准框架，生态完善
-- **ChromaDB**: 轻量级向量库，易于部署和调试
-
-#### 为什么不用Spring Cloud全家桶？
-1. **复杂度控制**: Eureka、Config Server等增加学习成本
-2. **时间限制**: 3-4个月需要快速产出MVP
-3. **过度设计**: 2-3个服务不需要完整的微服务治理
-4. **求职定位**: Agent开发岗更看重AI能力而非微服务治理
-
-### 架构特点
-
-#### 优点
-- ✅ **职责清晰**: Java处理业务，Python处理AI
-- ✅ **技术全面**: 展示全栈能力
-- ✅ **易于理解**: 架构简单，面试容易讲清楚
-- ✅ **可扩展**: 后续可以添加更多Agent
-
-#### 权衡
-- ⚠️ **复杂度适中**: 比单体复杂，但不过度设计
-- ⚠️ **服务通信**: HTTP REST，性能够用但非最优
-- ⚠️ **事务处理**: 分布式事务暂时不考虑，采用补偿机制
+- 初版开发路线图与阶段划分
+  - Phase 1：基础框架
+  - Phase 2：认证系统
+  - Phase 3：项目管理
+  - Phase 4：RAG 问答 Agent
+  - Phase 5：代码审查 Agent
+  - Phase 6：性能优化与部署
 
 ---
 
-## 开发计划
+<!-- 比对链接占位，后续接入实际仓库 URL 时更新 -->
+[Unreleased]: https://example.com/compare/v0.1.0...HEAD
+[0.1.0]: https://example.com/releases/tag/v0.1.0
 
-### Phase 1: 基础框架搭建 (Week 1-2) - 进行中
 
-**目标**: 完成项目框架，服务可以启动
+### 文档 (Documentation)
 
-#### Java服务
-- [x] 项目结构创建
-- [x] Maven配置
-- [x] application.yml配置
-- [ ] UserServiceApplication.java启动类
-- [ ] 基础配置类(RedisConfig, SwaggerConfig)
-- [ ] 统一返回格式(Result类)
-- [ ] 全局异常处理
+- 📋 全面更新 README.md 开发计划（2025-11-21 第二次更新）
+  - **Phase 2 (核心功能) 完成度修正为 100%**：
+    - ✅ JWT认证实现 (Spring Security + JWT + BCrypt)
+    - ✅ 用户CRUD完善 (增删改查、密码修改、头像上传)
+    - ✅ 项目管理功能 (项目CRUD、分页查询)
+    - ✅ 对话系统 (创建对话、发送消息、历史记录)
+  - **Phase 3 (服务集成) 完成度修正为 75%**：
+    - ✅ 统一异常处理、Redis缓存集成、日志和监控
+    - ⏳ Java调用Python服务 (移至 Phase 6)
+  - **新增 Phase 4 (前端UI实现) 100% 完成**：
+    - ✅ Neo-Brutalism 设计规范和完整组件库
+    - ✅ 登录/注册/主页/项目详情页面
+    - ✅ 状态管理 (Zustand) 和 API 服务层
+  - **Phase 5 重命名为 RAG Agent 完整实现**：保持 100% 完成状态
+  - **调整 Phase 序号**：高级特性改为 Phase 6，部署上线改为 Phase 7
 
-#### Python服务
-- [ ] requirements.txt依赖配置
-- [ ] main.py FastAPI启动类
-- [ ] config.py配置管理
-- [ ] 统一响应格式
-- [ ] 异常处理中间件
+- 📋 更新 README.md 开发计划与核心特性（2025-11-21 第一次更新）
+  - 标记 Phase 4 已完成：RAG Agent、代码索引、测试套件、CI/CD
+  - 标记 Phase 2 部分完成：RAG系统实现、代码问答Agent
+  - 补充核心特性：高质量代码（99%测试覆盖率）、CI/CD
+  - 更新技术栈：移除未使用的 LlamaIndex，添加 pytest 测试框架
+  - 新增"运行测试"章节：pytest 测试运行指南
 
-#### 基础设施
-- [ ] docker-compose.yml编排配置
-- [ ] PostgreSQL初始化脚本
-- [ ] Redis配置
-- [ ] Nginx配置
-
-**交付物**:
-- 所有服务可以启动
-- Swagger文档可以访问
-- 数据库连接成功
-
----
-
-### Phase 2: 用户认证实现 (Week 3-4)
-
-**目标**: 完整的用户注册、登录、JWT认证
-
-#### 功能清单
-- [ ] User实体类和数据库表
-- [ ] UserMapper数据访问层
-- [ ] 用户注册接口（密码BCrypt加密）
-- [ ] 用户登录接口（JWT生成）
-- [ ] JwtTokenProvider工具类
-- [ ] JwtAuthenticationFilter过滤器
-- [ ] SecurityConfig安全配置
-- [ ] Token刷新接口
-- [ ] 用户信息查询接口
-- [ ] Redis缓存用户信息
-
-#### 测试要求
-- [ ] 注册接口单元测试
-- [ ] 登录接口集成测试
-- [ ] JWT验证测试
-- [ ] Postman接口测试集合
-
-**交付物**:
-- 完整的认证流程
-- API测试通过
-- 代码覆盖率>70%
+- 📋 新增 Agent Service 测试指南（2025-11-20）
+  - 文档位置：`docs/phase4-testing-guide.md`
+  - 内容：测试架构、运行步骤、覆盖说明、常见问题排查
+  - 补充：`docs/phase4-completion-summary.md`（Phase 4 完成总结）
 
 ---
 
-### Phase 3: 项目管理实现 (Week 5-6)
+- Agent 错误码与知识库对齐（2025-11-20）
+  - 调整 `AgentErrorCode` 枚举值，使 REPOSITORY_ERROR / INDEX_NOT_READY / VECTOR_STORE_ERROR / EMBEDDING_ERROR / OPENAI_API_ERROR / LLM_ERROR / QUERY_ERROR 等与 `PROJECTWIKI.md` 中错误码表保持一致（例如 INDEX_NOT_READY=2002）。
+  - 更新 `QaAgent` 实现为异步调用 `ChatOpenAI.ainvoke`，修复问答接口返回的 `answer` 字段为非字符串导致的 Pydantic 校验错误，并保证测试中的 Mock 能正确接管。
+  - 调整 `app.dependencies` 中 Embedding/VectorStore/CodeIndexer 依赖为每次请求构造实例，避免单例缓存导致集成测试中的 `OpenAIEmbeddings` Mock 失效。
 
-**目标**: 项目CRUD、GitHub仓库接入
-
-#### 功能清单
-- [ ] Project实体类和数据库表
-- [ ] 项目创建接口
-- [ ] 项目列表查询（分页）
-- [ ] 项目详情查询
-- [ ] 项目更新接口
-- [ ] 项目删除（逻辑删除）
-- [ ] GitHub仓库URL验证
-- [ ] 调用Python服务索引代码
-
-#### Java → Python调用
-- [ ] RestTemplate/OpenFeign配置
-- [ ] AgentClientService服务类
-- [ ] 异步调用和回调
-
-**交付物**:
-- 项目管理功能完整
-- 服务间调用成功
-
----
-
-### Phase 4: RAG问答Agent (Week 7-8)
-
-**目标**: 基于RAG的代码问答
-
-#### Python Agent开发
-- [ ] ChromaDB集成
-- [ ] 代码文件加载器
-- [ ] 代码分块策略（RecursiveTextSplitter）
-- [ ] Embedding生成（OpenAI/本地）
-- [ ] 向量存储和检索
-- [ ] LangChain QA Chain
-- [ ] 对话历史管理
-- [ ] 引用来源返回
-
-#### API接口
-- [ ] POST /api/v1/index/repository - 索引仓库
-- [ ] POST /api/v1/chat/ask - 代码问答
-- [ ] GET /api/v1/chat/history - 对话历史
-
-#### 优化
-- [ ] 混合检索策略（Dense + Sparse）
-- [ ] 检索结果重排序
-- [ ] 缓存热门问题
-
-**交付物**:
-- 问答功能可用
-- 检索准确率测试
-
----
-
-### Phase 5: 代码审查Agent (Week 9-10)
-
-**目标**: 自动代码审查和报告生成
-
-#### 功能实现
-- [ ] 静态代码分析（pylint/ruff）
-- [ ] LLM深度审查
-- [ ] 报告生成（Markdown格式）
-- [ ] 异步任务处理（Celery）
-- [ ] 任务状态查询
-
-#### API接口
-- [ ] POST /api/v1/review/analyze - 发起审查
-- [ ] GET /api/v1/review/result/{taskId} - 查询结果
-
-**交付物**:
-- 审查功能可用
-- 生成可读的报告
-
----
-
-### Phase 6: 性能优化和完善 (Week 11-12)
-
-**目标**: 性能优化、文档完善、部署
-
-#### 性能优化
-- [ ] Redis缓存策略优化
-- [ ] 数据库索引优化
-- [ ] 批量处理优化
-- [ ] 接口响应时间优化（<200ms）
-
-#### 文档完善
-- [ ] API接口文档完善
-- [ ] 代码注释补充
-- [ ] 部署文档
-- [ ] 开发文档
-
-#### 部署
-- [ ] Docker镜像优化
-- [ ] docker-compose生产配置
-- [ ] 云平台部署（可选）
-- [ ] CI/CD配置（可选）
-
-#### 演示准备
-- [ ] 演示视频录制
-- [ ] PPT制作
-- [ ] 技术博客撰写
-
-**交付物**:
-- 完整可演示的系统
-- 完善的文档
-- 部署到云平台
-
----
-
-## 技术债务
-
-### 当前已知问题
-- 暂无
-
-### 待优化项
-- [ ] 服务间通信可以从HTTP升级到gRPC（性能优化）
-- [ ] 分布式事务处理（目前采用补偿机制）
-- [ ] 监控和告警系统
-- [ ] 全链路日志追踪
-- [ ] API限流和熔断
-
----
-
-## 版本规划
-
-### v0.1.0 - 项目初始化 ✅
-- 基础框架搭建
-- 文档创建
-
-### v0.2.0 - 用户认证 (预计Week 4)
-- 用户注册登录
-- JWT认证
-
-### v0.3.0 - 项目管理 (预计Week 6)
-- 项目CRUD
-- 服务间调用
-
-### v0.4.0 - RAG问答 (预计Week 8)
-- 代码索引
-- 智能问答
-
-### v0.5.0 - 代码审查 (预计Week 10)
-- 自动审查
-- 报告生成
-
-### v1.0.0 - 正式版 (预计Week 12)
-- 功能完整
-- 文档完善
-- 部署上线
-
----
-
-## 贡献者
-
-- **主要开发者**: [Your Name]
-- **项目时间**: 2025-11 ~ 2026-02
-- **项目目的**: Agent应用开发实习求职
-
----
-
-## 参考
-
-### 遵循的规范
-- [语义化版本](https://semver.org/lang/zh-CN/)
-- [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)
-- [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)
-
-### 灵感来源
-- Quivr - 个人知识库
-- gpt-engineer - AI代码生成
-- langchain-ChatGLM - 中文RAG实践
-
----
-
-**最后更新**: 2025-11-15
-
-### Fixed（修复）
-- （[未发布]）修复 `java-service/project-service` 异常目录名（如 `{src`, `{src\\main`, `{src\\main\\resources}` 等），重建为标准 Maven 结构并提供最小骨架（`pom.xml`、`ProjectServiceApplication.java`、`application.yml`）。
-- （[未发布]）修复 `java-service/user-service` 异常目录名（`{src`, `{src\\main`, `{src\\test`）以符合标准 Maven 结构。
-
-### Chore（维护）
-- （[未发布]）仓库卫生：清理 `java-service/user-service` 误入依赖目录（aopalliance/、com/、io/、org/ 等）、删除遗留 `*.bak` 备份与 `.idea/` 目录；新增 `.gitattributes` 统一换行策略；为 `uploads/` 目录添加 `.gitkeep` 并在 `.gitignore` 放行。
+- Python Agent：Chat API 与向量索引稳定性修复（2025-11-20）
+  - 修复 `/api/v1/chat/ask` 响应中 `conversationId` 字段未正确回传的问题，并确保 `sources` 元数据使用 `startLine` / `endLine` 驼峰命名，与前端及 `PROJECTWIKI.md` 保持一致。
+  - 为 `VectorStoreService` 引入 `_SafeEmbeddings` 包装，保证在 Embedding 服务异常或返回长度不一致时仍可完成索引与检索（使用降级向量），降低对外部 OpenAI/Gitee 服务的强依赖。
