@@ -32,7 +32,7 @@ import javax.validation.constraints.NotNull;
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "用户管理", description = "用户信息查询、更新、密码修改、头像上传相关接口")
-@SecurityRequirement(name = "Bearer Authentication")
+@SecurityRequirement(name = "bearerAuth")
 public class UserController {
 
     private final UserService userService;

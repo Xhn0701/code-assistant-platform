@@ -81,7 +81,7 @@ public class AuthController {
      */
     @PostMapping("/logout")
     @Operation(summary = "用户登出", description = "退出登录（客户端删除Token）")
-    @SecurityRequirement(name = "Bearer Authentication")
+    @SecurityRequirement(name = "bearerAuth")
     public Result<Void> logout() {
         log.info("用户登出请求");
         // JWT是无状态的，不需要服务端处理
@@ -98,7 +98,7 @@ public class AuthController {
      */
     @GetMapping("/verify")
     @Operation(summary = "验证Token", description = "测试Token是否有效，返回当前用户信息")
-    @SecurityRequirement(name = "Bearer Authentication")
+    @SecurityRequirement(name = "bearerAuth")
     public Result<String> verifyToken() {
         // 如果能访问到这个接口，说明Token有效
         // SecurityUtils.getCurrentUser() 可以获取当前用户信息
