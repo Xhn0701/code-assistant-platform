@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Any, Generic, Optional, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 T = TypeVar("T")
 
@@ -34,16 +34,17 @@ class ResponseModel(BaseModel, Generic[T]):
     )
     success: bool = Field(description="操作是否成功")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "code": 200,
                 "message": "操作成功",
                 "data": {"key": "value"},
                 "timestamp": "2025-11-16T17:00:00.000",
-                "success": True
+                "success": True,
             }
         }
+    )
 
 
 def create_response(
