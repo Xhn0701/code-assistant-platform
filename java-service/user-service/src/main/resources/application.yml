@@ -67,6 +67,14 @@ jwt:
 agent-service:
   url: http://${PYTHON_AGENT_SERVICE_HOST:localhost}:${PYTHON_AGENT_SERVICE_PORT:8000}
 
+# 项目仓库配置
+project:
+  repository:
+    # 仓库克隆的基础路径
+    base-path: ${PROJECT_REPOSITORY_BASE_PATH:/tmp/code-assistant}
+    # Git clone 超时时间（秒）
+    clone-timeout: ${PROJECT_CLONE_TIMEOUT:300}
+
 # 文件存储配置
 file:
   upload:

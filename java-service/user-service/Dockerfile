@@ -7,12 +7,11 @@ FROM maven:3.9-eclipse-temurin-17-alpine AS builder
 
 WORKDIR /app
 
-# Copy pom.xml first for dependency caching
+# Copy pom.xml and source code
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
-
-# Copy source code and build
 COPY src ./src
+
+# Build (skip go-offline due to network issues)
 RUN mvn clean package -DskipTests -B
 
 # Stage 2: Runtime
@@ -26,8 +25,8 @@ COPY --from=builder /app/target/*.jar app.jar
 # Expose port
 EXPOSE 8080
 
-# Install wget for health check
-RUN apk add --no-cache wget
+# Install wget for health check and git for repository cloning
+RUN apk add --no-cache wget git
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \

@@ -14,6 +14,7 @@ import org.springframework.cache.annotation.EnableCaching;
 @SpringBootApplication
 @MapperScan("com.codeassistant.user.mapper")
 @EnableCaching
+@org.springframework.scheduling.annotation.EnableScheduling
 public class UserServiceApplication {
 
     public static void main(String[] args) {

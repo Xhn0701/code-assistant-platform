@@ -105,14 +105,14 @@ class AgentException(Exception):
 
 # 便捷异常创建函数
 
-def param_error(message: str = "参数错误", data: Any | None = None) -> "AgentException":
+def param_error(message: str = "参数错误", data: Optional[Any] = None) -> "AgentException":
     """参数错误异常。"""
     return AgentException(AgentErrorCode.PARAM_ERROR, message, data)
 
 
 def internal_error(
     message: str = "服务器内部错误",
-    data: Any | None = None,
+    data: Optional[Any] = None,
 ) -> "AgentException":
     """内部错误异常。"""
     return AgentException(AgentErrorCode.INTERNAL_ERROR, message, data)
@@ -120,7 +120,7 @@ def internal_error(
 
 def not_found(
     message: str = "资源不存在",
-    data: Any | None = None,
+    data: Optional[Any] = None,
 ) -> "AgentException":
     """资源不存在异常。"""
     return AgentException(AgentErrorCode.NOT_FOUND, message, data)
@@ -128,7 +128,7 @@ def not_found(
 
 def unauthorized(
     message: str = "未授权访问",
-    data: Any | None = None,
+    data: Optional[Any] = None,
 ) -> "AgentException":
     """未授权异常。"""
     return AgentException(AgentErrorCode.UNAUTHORIZED, message, data)
@@ -136,7 +136,7 @@ def unauthorized(
 
 def llm_error(
     message: str = "大模型调用失败",
-    data: Any | None = None,
+    data: Optional[Any] = None,
 ) -> "AgentException":
     """LLM 错误异常。"""
     return AgentException(AgentErrorCode.LLM_ERROR, message, data)

@@ -4,3 +4,4 @@ export { default as BrutCard } from './BrutCard';
 export { default as BrutInput } from './BrutInput';
 export { default as BrutContainer } from './BrutContainer';
 export { default as CreateProjectModal } from './CreateProjectModal';
+export { ReviewReport } from './ReviewReport';

@@ -59,6 +59,14 @@ public class Project {
     private String repositoryType;
 
     /**
+     * 项目本地路径
+     * 对于远程仓库，存储克隆后的本地路径
+     * 对于本地项目，存储用户指定的路径
+     */
+    @TableField("local_path")
+    private String localPath;
+
+    /**
      * 项目状态
      * CREATED: 已创建
      * INDEXING: 索引中

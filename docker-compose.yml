@@ -26,7 +26,7 @@ services:
     image: redis:7-alpine
     container_name: code-assistant-redis
     ports:
-      - "7379:6379"  # 改用7379端口避开Windows保留端口(6379-6578)
+      - "7379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -52,6 +52,8 @@ services:
       - SPRING_REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION=${JWT_EXPIRATION}
+      - PYTHON_AGENT_SERVICE_HOST=agent-service
+      - PYTHON_AGENT_SERVICE_PORT=8000
     ports:
       - "8080:8080"
     depends_on:
@@ -59,6 +61,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - project_repos:/tmp/code-assistant
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -79,6 +83,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=1
+      - CELERY_BROKER_URL=redis://redis:6379/2
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
       - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
@@ -92,6 +98,7 @@ services:
         condition: service_healthy
     volumes:
       - vector_data:/data/vectorstore
+      - project_repos:/tmp/code-assistant
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/v1/ping')"]
       interval: 30s
@@ -102,6 +109,7 @@ services:
       - code-assistant-network
 
 volumes:
+  project_repos:
   postgres_data:
   redis_data:
   vector_data:

@@ -80,6 +80,16 @@ class Settings(BaseSettings):
         description="Java 用户服务 URL",
     )
 
+    # ========== Celery 配置 ==========
+    celery_broker_url: str = Field(
+        default="redis://localhost:6379/2",
+        description="Celery Broker URL (Redis)",
+    )
+    celery_result_backend: str = Field(
+        default="redis://localhost:6379/2",
+        description="Celery Result Backend URL (Redis)",
+    )
+
     # ========== 日志配置 ==========
     log_level: str = Field(default="INFO", description="日志级别")
     log_format: str = Field(

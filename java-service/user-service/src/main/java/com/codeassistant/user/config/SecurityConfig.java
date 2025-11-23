@@ -58,7 +58,8 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",            // OpenAPI文档
                                 "/api-docs/**",               // SpringDoc API文档
                                 "/swagger-resources/**",      // Swagger资源
-                                "/webjars/**"                 // Swagger依赖
+                                "/webjars/**",                // Swagger依赖
+                                "/ws/**"                      // WebSocket/STOMP 握手与 SockJS 信息端点
                         ).permitAll()
 
                         // OPTIONS请求允许（CORS预检请求）

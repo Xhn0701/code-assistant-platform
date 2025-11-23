@@ -38,6 +38,15 @@ public class BusinessException extends RuntimeException {
         this.message = message;
     }
 
+    /**
+     * 使用默认业务错误码的构造函数
+     */
+    public BusinessException(String message) {
+        super(message);
+        this.code = ResultCode.BUSINESS_ERROR.getCode();
+        this.message = message;
+    }
+
     @Override
     public String getMessage() {
         return message;

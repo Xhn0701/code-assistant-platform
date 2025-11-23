@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { BrutButton, BrutCard, BrutContainer } from '../components';
-import { projectAPI } from '../services/api';
+import { BrutButton, BrutCard, BrutContainer, ReviewReport } from '../components';
+import { projectAPI, reviewAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useTaskProgress, type ReviewReport as ReviewReportType } from '../hooks/useTaskProgress';
 
 interface Project {
   id: number;
@@ -35,6 +36,30 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // 审查相关状态
+  const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
+  const [reviewReport, setReviewReport] = useState<ReviewReportType | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+
+  // WebSocket 订阅任务进度
+  const handleReviewComplete = useCallback((report: ReviewReportType) => {
+    setReviewReport(report);
+    setReviewTaskId(null);
+    setReviewLoading(false);
+  }, []);
+
+  const handleReviewError = useCallback((err: string) => {
+    setReviewError(err);
+    setReviewTaskId(null);
+    setReviewLoading(false);
+  }, []);
+
+  const { progress, connected } = useTaskProgress(reviewTaskId, {
+    onComplete: handleReviewComplete,
+    onError: handleReviewError
+  });
+
   useEffect(() => {
     if (projectId) {
       loadProject(parseInt(projectId, 10));
@@ -60,6 +85,29 @@ export default function ProjectDetailPage() {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  // 触发代码审查
+  const handleStartReview = async (level: 'quick' | 'standard' | 'full' = 'standard') => {
+    if (!project) return;
+
+    setReviewLoading(true);
+    setReviewError('');
+    setReviewReport(null);
+
+    try {
+      const response = await reviewAPI.startReview(project.id, level);
+      if (response.data.code === 200) {
+        setReviewTaskId(response.data.data.taskId);
+      } else {
+        setReviewError(response.data.message || '启动审查失败');
+        setReviewLoading(false);
+      }
+    } catch (err: any) {
+      console.error('Failed to start review:', err);
+      setReviewError(err.response?.data?.message || '启动审查失败');
+      setReviewLoading(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -261,6 +309,87 @@ export default function ProjectDetailPage() {
               </div>
             </div>
           </BrutCard>
+
+          {/* 代码审查区域 */}
+          <BrutCard variant="default" className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="brut-h4">代码审查</h3>
+              {connected && (
+                <span className="text-xs text-green-600 font-bold">
+                  WebSocket 已连接
+                </span>
+              )}
+            </div>
+
+            {/* 审查按钮 */}
+            <div className="flex gap-3 mb-4">
+              <BrutButton
+                variant="primary"
+                onClick={() => handleStartReview('standard')}
+                disabled={reviewLoading || project.indexStatus !== 'COMPLETED'}
+              >
+                {reviewLoading ? '审查中...' : '开始代码审查'}
+              </BrutButton>
+              <BrutButton
+                variant="secondary"
+                onClick={() => handleStartReview('quick')}
+                disabled={reviewLoading || project.indexStatus !== 'COMPLETED'}
+              >
+                快速审查
+              </BrutButton>
+              <BrutButton
+                variant="secondary"
+                onClick={() => handleStartReview('full')}
+                disabled={reviewLoading || project.indexStatus !== 'COMPLETED'}
+              >
+                完整审查
+              </BrutButton>
+            </div>
+
+            {project.indexStatus !== 'COMPLETED' && (
+              <p className="text-sm text-gray-500">
+                请先完成代码索引后再进行审查
+              </p>
+            )}
+
+            {/* 审查进度条 */}
+            {reviewLoading && progress && (
+              <div className="mt-4">
+                <div className="flex justify-between text-sm mb-2">
+                  <span>{progress.message || '处理中...'}</span>
+                  <span>{progress.progress}%</span>
+                </div>
+                <div className="w-full h-4 bg-gray-200 border-2 border-black">
+                  <div
+                    className="h-full bg-brut-yellow transition-all duration-300"
+                    style={{ width: `${progress.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 审查完成状态提示（保留 100% 信息） */}
+            {!reviewLoading && progress && progress.status === 'COMPLETED' && (
+              <div className="mt-4 text-sm font-bold text-green-700">
+                审查已完成（{progress.progress}%）
+              </div>
+            )}
+
+            {/* 审查错误 */}
+            {reviewError && (
+              <div className="mt-4 p-3 bg-red-100 border-2 border-red-500 text-red-700">
+                {reviewError}
+              </div>
+            )}
+          </BrutCard>
+
+          {/* 审查报告 */}
+          {reviewReport && (
+            <div className="mb-8">
+              <h3 className="brut-h4 mb-4">审查报告</h3>
+              <ReviewReport report={reviewReport} />
+            </div>
+          )}
 
           {/* 操作按钮 */}
           <div className="flex gap-4">

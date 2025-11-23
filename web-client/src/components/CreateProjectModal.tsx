@@ -15,10 +15,20 @@ interface CreateProjectModalProps {
 export default function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps) {
   const addProject = useProjectStore((state) => state.addProject);
 
-  const [formData, setFormData] = useState({
+  type SourceType = 'REMOTE' | 'LOCAL';
+
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    repositoryUrl: string;
+    sourceType: SourceType;
+    localPath: string;
+  }>({
     name: '',
     description: '',
     repositoryUrl: '',
+    sourceType: 'REMOTE',
+    localPath: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +44,15 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
     setError('');
   };
 
+  const handleSourceTypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value as SourceType;
+    setFormData((prev) => ({
+      ...prev,
+      sourceType: value,
+    }));
+    setError('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -42,22 +61,51 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
       return;
     }
 
+    if (formData.sourceType === 'REMOTE' && !formData.repositoryUrl.trim()) {
+      setError('远程仓库项目必须填写代码仓库 URL');
+      return;
+    }
+
+    if (formData.sourceType === 'LOCAL' && !formData.localPath.trim()) {
+      setError('本地项目必须提供本地代码路径');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      const response = await projectAPI.createProject({
+      const basePayload = {
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
-        repositoryUrl: formData.repositoryUrl.trim() || undefined,
-      });
+      };
+
+      const payload =
+        formData.sourceType === 'REMOTE'
+          ? {
+              ...basePayload,
+              repositoryUrl: formData.repositoryUrl.trim() || undefined,
+            }
+          : {
+              ...basePayload,
+              repositoryType: 'LOCAL',
+              localPath: formData.localPath.trim(),
+            };
+
+      const response = await projectAPI.createProject(payload);
 
       if (response.data.code === 200) {
         // 添加到状态管理
         addProject(response.data.data);
 
         // 重置表单并关闭
-        setFormData({ name: '', description: '', repositoryUrl: '' });
+        setFormData({
+          name: '',
+          description: '',
+          repositoryUrl: '',
+          sourceType: 'REMOTE',
+          localPath: ''
+        });
         onClose();
       } else {
         setError(response.data.message || '创建项目失败');
@@ -73,7 +121,13 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
 
   const handleClose = () => {
     if (!loading) {
-      setFormData({ name: '', description: '', repositoryUrl: '' });
+      setFormData({
+        name: '',
+        description: '',
+        repositoryUrl: '',
+        sourceType: 'REMOTE',
+        localPath: ''
+      });
       setError('');
       onClose();
     }

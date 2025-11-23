@@ -7,7 +7,9 @@ import com.codeassistant.user.common.ResultCode;
 import com.codeassistant.user.dto.CreateProjectRequest;
 import com.codeassistant.user.dto.ProjectResponse;
 import com.codeassistant.user.dto.UpdateProjectRequest;
+import com.codeassistant.user.entity.AsyncTask;
 import com.codeassistant.user.entity.Project;
+import com.codeassistant.user.mapper.AsyncTaskMapper;
 import com.codeassistant.user.mapper.ProjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,9 +33,13 @@ import java.util.stream.Collectors;
 public class ProjectService {
 
     private final ProjectMapper projectMapper;
+    private final AsyncTaskMapper asyncTaskMapper;
+    private final com.codeassistant.user.client.AgentClientService agentClient;
+    private final GitService gitService;
 
     /**
      * 创建项目
+     * 完整流程: 创建项目 → 克隆/验证代码路径 → 自动触发索引
      *
      * @param userId 用户ID
      * @param request 创建请求
@@ -43,19 +49,22 @@ public class ProjectService {
     public ProjectResponse createProject(Long userId, CreateProjectRequest request) {
         log.info("Creating project for user: {}, name: {}", userId, request.getName());
 
-        // 检查项目名称是否已存在
+        // 1. 检查项目名称是否已存在
         Project existingProject = projectMapper.findByUserIdAndName(userId, request.getName());
         if (existingProject != null) {
             throw new BusinessException(ResultCode.PROJECT_NAME_EXISTS);
         }
 
-        // 构建项目实体
+        // 2. 确定仓库类型
+        String repositoryType = determineRepositoryType(request);
+
+        // 3. 构建项目实体 (先不设置 localPath)
         Project project = Project.builder()
                 .userId(userId)
                 .name(request.getName())
                 .description(request.getDescription())
                 .repositoryUrl(request.getRepositoryUrl())
-                .repositoryType(determineRepositoryType(request))
+                .repositoryType(repositoryType)
                 .status(Project.Status.CREATED)
                 .indexStatus(Project.IndexStatus.PENDING)
                 .totalFiles(0)
@@ -65,11 +74,118 @@ public class ProjectService {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        // 保存项目
+        // 4. 保存项目 (获取自动生成的 ID)
         projectMapper.insert(project);
-        log.info("Project created successfully with ID: {}", project.getId());
+        log.info("Project created with ID: {}", project.getId());
+
+        try {
+            // 5. 处理代码路径
+            String localPath = prepareProjectPath(project, request);
+            project.setLocalPath(localPath);
+
+            // 更新项目本地路径
+            projectMapper.updateById(project);
+            log.info("Project local path set: {}", localPath);
+
+            // 6. 自动触发索引
+            triggerAutoIndex(project);
+
+        } catch (Exception e) {
+            log.error("Failed to prepare project or trigger indexing: {}", e.getMessage(), e);
+            // 更新项目状态为 ERROR
+            project.setStatus(Project.Status.ERROR);
+            project.setIndexStatus(Project.IndexStatus.FAILED);
+            projectMapper.updateById(project);
+
+            throw new BusinessException("项目创建失败: " + e.getMessage());
+        }
 
         return ProjectResponse.fromEntity(project);
+    }
+
+    /**
+     * 准备项目路径 (克隆或验证本地路径)
+     */
+    private String prepareProjectPath(Project project, CreateProjectRequest request) {
+        String repositoryType = project.getRepositoryType();
+
+        // 情况1: LOCAL 类型 - 验证本地路径
+        if (Project.RepositoryType.LOCAL.equals(repositoryType)) {
+            String localPath = request.getLocalPath();
+            if (!StringUtils.hasText(localPath)) {
+                throw new BusinessException("LOCAL 类型项目必须提供本地路径");
+            }
+
+            if (!gitService.validateLocalPath(localPath)) {
+                throw new BusinessException("本地路径无效或不存在: " + localPath);
+            }
+
+            log.info("Local project path validated: {}", localPath);
+            return localPath;
+        }
+
+        // 情况2: 远程仓库 (GITHUB, GITLAB, BITBUCKET)
+        String repositoryUrl = project.getRepositoryUrl();
+        if (!StringUtils.hasText(repositoryUrl)) {
+            throw new BusinessException("远程仓库项目必须提供仓库 URL");
+        }
+
+        // 如果用户指定了本地路径,优先使用
+        if (StringUtils.hasText(request.getLocalPath())) {
+            log.info("Using user-specified local path: {}", request.getLocalPath());
+            return request.getLocalPath();
+        }
+
+        // 否则克隆到默认位置
+        log.info("Cloning repository: {} for project {}", repositoryUrl, project.getId());
+        return gitService.cloneRepository(repositoryUrl, project.getId());
+    }
+
+    /**
+     * 自动触发索引
+     */
+    private void triggerAutoIndex(Project project) {
+        log.info("Triggering auto-index for project: {}", project.getId());
+
+        // 更新状态为 INDEXING
+        project.setStatus(Project.Status.INDEXING);
+        project.setIndexStatus(Project.IndexStatus.INDEXING);
+        projectMapper.updateById(project);
+
+        try {
+            // 调用 Agent 服务进行索引（同步操作）
+            com.codeassistant.user.client.dto.IndexResponse indexResponse =
+                agentClient.indexRepository(project.getId(), project.getLocalPath());
+
+            log.info("索引完成: projectId={}, status={}, totalFiles={}, indexedFiles={}",
+                project.getId(), indexResponse.getStatus(),
+                indexResponse.getTotalFiles(), indexResponse.getIndexedFiles());
+
+            // 更新项目索引信息
+            project.setTotalFiles(indexResponse.getTotalFiles());
+            project.setIndexedFiles(indexResponse.getIndexedFiles());
+            project.setLastIndexedAt(LocalDateTime.now());
+
+            // 根据索引结果更新状态
+            if ("COMPLETED".equals(indexResponse.getStatus())) {
+                project.setStatus(Project.Status.READY);
+                project.setIndexStatus(Project.IndexStatus.COMPLETED);
+            } else if ("FAILED".equals(indexResponse.getStatus())) {
+                project.setStatus(Project.Status.ERROR);
+                project.setIndexStatus(Project.IndexStatus.FAILED);
+            }
+
+            projectMapper.updateById(project);
+
+        } catch (Exception e) {
+            log.error("索引失败: {}", e.getMessage(), e);
+            // 索引失败,更新状态
+            project.setStatus(Project.Status.ERROR);
+            project.setIndexStatus(Project.IndexStatus.FAILED);
+            projectMapper.updateById(project);
+
+            throw new BusinessException("触发索引失败: " + e.getMessage());
+        }
     }
 
     /**
@@ -257,5 +373,126 @@ public class ProjectService {
         }
 
         return Project.RepositoryType.LOCAL;
+    }
+
+    /**
+     * 触发代码审查
+     *
+     * @param userId 用户ID
+     * @param projectId 项目ID
+     * @param level 审查级别 (quick/standard/full)
+     * @return 审查任务响应
+     */
+    public com.codeassistant.user.client.dto.ReviewResponse reviewCode(
+        Long userId,
+        Long projectId,
+        String level
+    ) {
+        log.info("开始代码审查: userId={}, projectId={}, level={}", userId, projectId, level);
+
+        // 1. 验证项目状态
+        Project project = getProjectEntity(userId, projectId);
+        if (!Project.IndexStatus.COMPLETED.equals(project.getIndexStatus())) {
+            throw new BusinessException(ResultCode.PROJECT_NOT_INDEXED);
+        }
+
+        // 2. 构建审查请求
+        com.codeassistant.user.client.dto.ReviewRequest request =
+            com.codeassistant.user.client.dto.ReviewRequest.builder()
+                .projectId(projectId)
+                .projectPath(project.getLocalPath())  // 需要项目本地路径
+                .level(level != null ? level : "standard")
+                .build();
+
+        // 3. 调用Agent服务
+        var response = agentClient.reviewCode(request);
+
+        // 4. 创建AsyncTask记录，用于进度轮询和推送
+        AsyncTask task = new AsyncTask();
+        task.setTaskType(AsyncTask.TaskType.REVIEW);
+        task.setStatus(AsyncTask.TaskStatus.PENDING);
+        task.setProjectId(projectId);
+        // userId 暂不记录到 AsyncTask
+        task.setCeleryTaskId(response.getTaskId());
+        task.setProgress(0);
+        task.setEstimatedTime(response.getEstimatedTime());
+        task.setMessage("审查任务已创建");
+        task.setCreatedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
+        asyncTaskMapper.insert(task);
+
+        log.info("创建AsyncTask记录: id={}, celeryTaskId={}", task.getId(), response.getTaskId());
+
+        com.codeassistant.user.client.dto.ReviewResponse frontendResponse =
+            com.codeassistant.user.client.dto.ReviewResponse.builder()
+                .taskId(String.valueOf(task.getId()))
+                .status(response.getStatus())
+                .estimatedTime(response.getEstimatedTime())
+                .message(response.getMessage())
+                .build();
+
+        return frontendResponse;
+    }
+
+    /**
+     * 查询审查结果
+     *
+     * @param userId 用户ID
+     * @param projectId 项目ID
+     * @param taskId 任务ID
+     * @return 审查报告
+     */
+    public Object getReviewResult(Long userId, Long projectId, String taskId) {
+        log.info("查询审查结果: userId={}, projectId={}, taskId={}", userId, projectId, taskId);
+
+        // 验证项目所属
+        getProjectEntity(userId, projectId);
+
+        // 调用Agent服务
+        return agentClient.getReviewResult(taskId);
+    }
+
+    /**
+     * 处理索引回调
+     * Agent 服务索引完成后调用,更新项目状态
+     *
+     * @param request 回调请求
+     */
+    @Transactional
+    public void handleIndexCallback(com.codeassistant.user.dto.IndexCallbackRequest request) {
+        log.info("处理索引回调: projectId={}, status={}", request.getProjectId(), request.getStatus());
+
+        Project project = projectMapper.selectById(request.getProjectId());
+        if (project == null) {
+            log.error("项目不存在: {}", request.getProjectId());
+            throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
+        }
+
+        // 更新索引状态
+        project.setIndexStatus(request.getStatus());
+
+        // 根据状态更新项目状态
+        if (Project.IndexStatus.COMPLETED.equals(request.getStatus())) {
+            project.setStatus(Project.Status.READY);
+            project.setTotalFiles(request.getTotalFiles());
+            project.setIndexedFiles(request.getIndexedFiles());
+            project.setLanguage(request.getLanguage());
+            project.setLastIndexedAt(LocalDateTime.now());
+
+            log.info("项目索引完成: projectId={}, totalFiles={}, language={}",
+                request.getProjectId(), request.getTotalFiles(), request.getLanguage());
+
+        } else if (Project.IndexStatus.FAILED.equals(request.getStatus())) {
+            project.setStatus(Project.Status.ERROR);
+
+            log.error("项目索引失败: projectId={}, error={}",
+                request.getProjectId(), request.getErrorMessage());
+        }
+
+        project.setUpdatedAt(LocalDateTime.now());
+        projectMapper.updateById(project);
+
+        log.info("项目状态已更新: projectId={}, status={}, indexStatus={}",
+            project.getId(), project.getStatus(), project.getIndexStatus());
     }
 }

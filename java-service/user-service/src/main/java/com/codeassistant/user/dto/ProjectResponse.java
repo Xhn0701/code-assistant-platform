@@ -26,6 +26,7 @@ public class ProjectResponse {
     private String description;
     private String repositoryUrl;
     private String repositoryType;
+    private String localPath;
     private String status;
     private String indexStatus;
     private String language;
@@ -49,6 +50,7 @@ public class ProjectResponse {
                 .description(project.getDescription())
                 .repositoryUrl(project.getRepositoryUrl())
                 .repositoryType(project.getRepositoryType())
+                .localPath(project.getLocalPath())
                 .status(project.getStatus())
                 .indexStatus(project.getIndexStatus())
                 .language(project.getLanguage())

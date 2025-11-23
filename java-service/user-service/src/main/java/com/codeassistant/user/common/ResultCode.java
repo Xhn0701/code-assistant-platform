@@ -42,6 +42,7 @@ public enum ResultCode {
     PROJECT_ALREADY_EXISTS(3001, "项目已存在"),
     PROJECT_ACCESS_DENIED(3002, "无权访问该项目"),
     PROJECT_NAME_EXISTS(3003, "项目名称已存在"),
+    PROJECT_NOT_INDEXED(3004, "项目未完成索引,无法进行代码审查"),
 
     // ========== 外部服务 (4000-4099) ==========
     AGENT_SERVICE_ERROR(4000, "Agent服务调用失败"),

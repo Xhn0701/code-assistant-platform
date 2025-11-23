@@ -120,4 +120,41 @@ public class ProjectController {
         long count = projectService.countUserProjects(userId);
         return Result.success(count);
     }
+
+    /**
+     * 触发代码审查
+     */
+    @PostMapping("/{id}/review")
+    @Operation(summary = "触发代码审查", description = "对项目进行代码审查")
+    public Result<com.codeassistant.user.client.dto.ReviewResponse> reviewCode(
+            @Parameter(description = "项目ID") @PathVariable Long id,
+            @RequestBody(required = false) ReviewCodeRequest request) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        String level = request != null && request.getLevel() != null ? request.getLevel() : "standard";
+        log.info("Starting code review for project: {}, level: {}", id, level);
+        var response = projectService.reviewCode(userId, id, level);
+        return Result.success(response);
+    }
+
+    /**
+     * 获取审查结果
+     */
+    @GetMapping("/{id}/review/{taskId}")
+    @Operation(summary = "获取审查结果", description = "根据任务ID获取审查结果")
+    public Result<Object> getReviewResult(
+            @Parameter(description = "项目ID") @PathVariable Long id,
+            @Parameter(description = "任务ID") @PathVariable String taskId) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        log.info("Getting review result for project: {}, taskId: {}", id, taskId);
+        Object result = projectService.getReviewResult(userId, id, taskId);
+        return Result.success(result);
+    }
+
+    /**
+     * 审查请求DTO (内部类)
+     */
+    @lombok.Data
+    public static class ReviewCodeRequest {
+        private String level; // quick, standard, full
+    }
 }

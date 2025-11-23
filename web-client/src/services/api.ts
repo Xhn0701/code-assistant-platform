@@ -57,6 +57,8 @@ export const projectAPI = {
     name: string;
     description?: string;
     repositoryUrl?: string;
+    repositoryType?: string;
+    localPath?: string;
   }) =>
     api.post('/api/v1/projects', data),
 
@@ -80,3 +82,17 @@ export const agentAPI = {
   getChatHistory: (projectId: number) =>
     axios.get(`${AGENT_API_BASE_URL}/api/v1/chat/history/${projectId}`)
 };
+
+// Code Review 相关API (通过Java后端调用)
+export const reviewAPI = {
+  // 触发代码审查
+  startReview: (projectId: number, level: 'quick' | 'standard' | 'full' = 'standard') =>
+    api.post(`/api/v1/projects/${projectId}/review`, { level }),
+
+  // 获取审查结果
+  getReviewResult: (projectId: number, taskId: string) =>
+    api.get(`/api/v1/projects/${projectId}/review/${taskId}`)
+};
+
+// WebSocket 配置
+export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'http://localhost:8080/ws';

@@ -43,4 +43,12 @@ public class CreateProjectRequest {
      * 仓库类型 (GITHUB, GITLAB, BITBUCKET, LOCAL)
      */
     private String repositoryType;
+
+    /**
+     * 项目本地路径
+     * 对于 LOCAL 类型项目必填，指向本地代码目录
+     * 对于远程仓库可选，如果不指定将自动克隆到默认位置
+     */
+    @Size(max = 1000, message = "本地路径不能超过1000个字符")
+    private String localPath;
 }
