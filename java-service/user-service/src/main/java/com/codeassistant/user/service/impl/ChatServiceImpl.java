@@ -28,6 +28,7 @@ public class ChatServiceImpl implements ChatService {
 
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
+    private final com.codeassistant.user.client.AgentClientService agentClientService;
 
     @Override
     @Transactional
@@ -60,17 +61,67 @@ public class ChatServiceImpl implements ChatService {
     public ChatDtos.MessageResponse sendMessage(Long userId, String conversationId, ChatDtos.SendMessageRequest request) {
         Conversation conversation = getConversationEntity(userId, conversationId);
 
-        Message message = Message.builder()
+        // 1. 保存用户消息
+        Message userMessage = Message.builder()
                 .conversationId(conversation.getId())
                 .role(Message.Role.USER)
                 .content(request.getContent())
                 .sources(null)
                 .deleted(0)
-                // createdAt 和 updatedAt 由 MetaObjectHandler 自动填充
                 .build();
+        messageMapper.insert(userMessage);
 
-        messageMapper.insert(message);
-        return ChatDtos.MessageResponse.fromEntity(message);
+        // 2. 调用 Python Agent 获取回答
+        try {
+            com.codeassistant.user.client.dto.QuestionResponse agentAnswer =
+                    agentClientService.askQuestion(
+                            conversation.getProjectId(),
+                            request.getContent(),
+                            null  // 当前版本暂不使用多轮对话 ID，避免 UUID 转 Long 的类型问题
+                    );
+
+            if (agentAnswer == null || agentAnswer.getAnswer() == null) {
+                throw new BusinessException(ResultCode.INTERNAL_ERROR, "Agent 返回结果为空");
+            }
+
+            // 将代码引用转换为 JSON 字符串保存到 sources
+            String sourcesJson = null;
+            if (agentAnswer.getReferences() != null && !agentAnswer.getReferences().isEmpty()) {
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    // 只保存 filePath/startLine/endLine 三个字段即可支撑前端展示
+                    java.util.List<ChatDtos.CodeReferenceDto> refs = agentAnswer.getReferences().stream()
+                            .map(ref -> ChatDtos.CodeReferenceDto.builder()
+                                    .filePath(ref.getFilePath())
+                                    .startLine(ref.getStartLine())
+                                    .endLine(ref.getEndLine())
+                                    .build())
+                            .collect(java.util.stream.Collectors.toList());
+                    sourcesJson = mapper.writeValueAsString(refs);
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    log.warn("序列化 Agent 来源信息失败: {}", e.getMessage());
+                }
+            }
+
+            // 3. 保存 AI 回答消息
+            Message assistantMessage = Message.builder()
+                    .conversationId(conversation.getId())
+                    .role(Message.Role.ASSISTANT)
+                    .content(agentAnswer.getAnswer())
+                    .sources(sourcesJson)
+                    .deleted(0)
+                    .build();
+            messageMapper.insert(assistantMessage);
+
+            // 返回 AI 回答，前端直接展示
+            return ChatDtos.MessageResponse.fromEntity(assistantMessage);
+        } catch (BusinessException e) {
+            // 透传业务异常，保留用户消息
+            throw e;
+        } catch (Exception e) {
+            log.error("调用 Agent 生成回答失败: {}", e.getMessage(), e);
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "AI 回答生成失败");
+        }
     }
 
     @Override
@@ -140,4 +191,3 @@ public class ChatServiceImpl implements ChatService {
         return message;
     }
 }
-

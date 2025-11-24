@@ -93,6 +93,25 @@
   - 问题：`OpenApiConfig` 使用 "Bearer Authentication"，部分 Controller 使用 "bearerAuth"
   - 影响：Swagger UI 中的认证锁标记显示异常
   - 修复：统一所有引用为 "bearerAuth"
+- 配置与封装细节修复（2025-11-23）
+  - 修复 Agent Service Chroma 持久化目录环境变量不一致（`CHROMA_PERSIST_DIR` → `CHROMA_PERSIST_DIRECTORY`），确保向量库数据在容器重启后仍能保留（详见 PROJECTWIKI.md「部署指南 / 环境变量配置」）。
+  - 修复 User Service 在 Docker 部署场景下 Redis 环境变量名不匹配的问题（`SPRING_REDIS_HOST/PORT` 改为 `REDIS_HOST/PORT`），保证 JWT 认证等功能可以正常使用 Redis。
+  - 统一 Python 审查 Agent（`ReviewAgent`）的 OpenAI 配置到全局 `Settings`（模型、Base URL、Max Tokens 等与 `QaAgent` 保持一致），避免硬编码模型与 Key 带来的配置漂移。
+  - 为索引统计 API 新增正式封装方法 `CodeIndexer.get_collection_stats`，由 `index.py` 通过该方法访问集合统计信息，消除跨层访问 `_status_store._vectorstore` 私有属性的封装泄漏。
+- 对话历史功能类型不匹配问题（2025-11-23）
+  - **问题**：ChatServiceImpl.sendMessage 尝试将 UUID 字符串 conversationId 转换为 Long 传递给 Python Agent，导致 NumberFormatException 异常，事务回滚，用户消息和 AI 回答均未保存到数据库。
+  - **根因**：Java 端 `Conversation.id` 使用 UUID 字符串（`@TableId(type = IdType.ASSIGN_UUID)`），而 Python `ChatAskRequest.conversationId` 定义为 `Optional[int]`，跨服务调用时类型不一致。
+  - **临时修复**：传递 `null` 给 Python Agent（当前版本为无状态 RAG，不依赖 conversationId），对话历史完全由 Java 端数据库管理。
+  - **影响**：前端发送消息后立即可用，用户问题和 AI 回答正常保存和显示。
+  - **长期方案**：详见 PROJECTWIKI.md「技术难点与解决方案 / 难点1」，推荐统一使用 String 类型（工作量 1-2 小时）。
+  - **文件**：`user-service/service/impl/ChatServiceImpl.java:80`
+
+### Added（新增）
+
+- 对话历史前后端集成（2025-11-23）
+  - 前端在 `web-client/src/services/api.ts` 中新增 `chatAPI` 封装 Java `ChatController` 的对话管理接口（创建对话、获取对话列表、发送消息、获取历史/分页历史），并保留 `agentAPI.chat` 作为直接调用 Python Agent 的快速问答接口。
+  - 在 `ProjectDetailPage` 中接入基础版对话历史 UI：左侧显示项目下的对话列表，右侧显示当前对话的消息历史和输入框，消息通过 `chatAPI.sendMessage` 发送，由 Java + Python 完成问答与持久化，并在助手消息下方展示引用的代码文件路径与行号区间。
+  - 在 `PROJECTWIKI.md` 的 API 文档中补充 Java Chat API 与 Python Agent 问答接口的分工说明，强调“历史走 Java，对话内容由 Python Agent 生成”的整体架构。
 
 ---
 

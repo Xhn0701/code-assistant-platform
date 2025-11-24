@@ -72,15 +72,41 @@ export const projectAPI = {
 // AI Agent相关API (连接Python服务)
 const AGENT_API_BASE_URL = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000';
 
+// 保留旧的快速问答接口（直接走 Python Agent，不落库）
 export const agentAPI = {
   chat: (projectId: number, message: string) =>
     axios.post(`${AGENT_API_BASE_URL}/api/v1/chat`, {
       project_id: projectId,
       message
+    })
+};
+
+// 对话与历史管理 API（走 Java user-service，对话/消息持久化）
+export const chatAPI = {
+  // 创建对话
+  createConversation: (projectId: number, title?: string) =>
+    api.post('/api/v1/chat/conversations', {
+      projectId,
+      title: title || '新对话'
     }),
 
-  getChatHistory: (projectId: number) =>
-    axios.get(`${AGENT_API_BASE_URL}/api/v1/chat/history/${projectId}`)
+  // 获取项目的对话列表
+  getConversations: (projectId: number) =>
+    api.get(`/api/v1/chat/conversations/${projectId}`),
+
+  // 发送消息（带历史记录）
+  sendMessage: (conversationId: string, content: string) =>
+    api.post(`/api/v1/chat/${conversationId}/messages`, { content }),
+
+  // 获取消息历史（全部）
+  getMessages: (conversationId: string) =>
+    api.get(`/api/v1/chat/${conversationId}/messages`),
+
+  // 分页获取消息
+  getMessagesPaged: (conversationId: string, pageNum: number, pageSize: number) =>
+    api.get(`/api/v1/chat/${conversationId}/messages/paged`, {
+      params: { pageNum, pageSize }
+    })
 };
 
 // Code Review 相关API (通过Java后端调用)

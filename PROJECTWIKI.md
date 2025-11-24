@@ -11,6 +11,7 @@
 - [API接口文档](#api接口文档)
 - [数据库设计](#数据库设计)
 - [部署指南](#部署指南)
+- [技术难点与解决方案](#技术难点与解决方案)
 - [常见问题](#常见问题)
 
 ---
@@ -900,6 +901,17 @@ docs(readme): 更新安装文档
 }
 ```
 
+#### Python Agent 问答接口（无状态快速问答）
+
+- **POST /api/v1/chat/ask**（推荐新接口）
+- **POST /api/v1/chat**（兼容旧版前端，内部转发到 `/chat/ask`）
+
+说明：
+
+- Java `ChatController` 负责**对话与消息历史的持久化**，接口路径为 `/api/v1/chat/...`，调用方为 Web 前端的 `chatAPI.*` 方法；
+- Python Agent 负责**具体的 RAG 问答与代码分析**，通过 Java 侧的 `AgentClientService.askQuestion(...)` 间接调用；
+- 前端仅在需要“快速临时问答（不落库）”时直接调用 Python 的 `/api/v1/chat`（`agentAPI.chat`），常规对话历史应走 Java Chat API。
+
 ### Python API (端口8000)
 
 #### RAG 问答 Agent 架构（实现版）
@@ -978,6 +990,27 @@ flowchart LR
 **注意事项**：
 - 当前仅支持本地仓库路径（绝对路径）
 - 重复调用会**全量重建索引**（删除旧数据）
+
+#### 统一响应约定（Python Agent）
+
+为了与 Java Result 结构对齐，Python Agent 所有业务接口统一使用如下响应格式：
+
+```json
+{
+  "code": 200,
+  "message": "操作成功或错误信息",
+  "data": { "payload": "..." },
+  "timestamp": "2025-11-23T10:00:00.000",
+  "success": true
+}
+```
+
+- **HTTP 状态码约定**：
+  - 业务级错误（参数错误、索引未就绪、仓库路径错误等）统一返回 HTTP 200，由 `code` 字段区分错误类型（详见 `AgentErrorCode` 枚举）。
+  - 仅在服务器内部未捕获异常时返回 HTTP 500，`code` 固定为 `INTERNAL_ERROR`（1001）。
+- **调用方注意事项**：
+  - 前端、Java 客户端在处理 Python Agent 响应时，应始终以 `code == 200 && success == true` 作为成功判定条件，而不是依赖 HTTP 状态码。
+  - 所有错误场景下，`message` 字段保证为非空，便于直接展示给用户或写入日志。
 - 支持语言：`.java`, `.kt`, `.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.md`, `.yml`
 - 跳过目录：`.git`, `node_modules`, `dist`, `build`, `venv`, `__pycache__`
 - 文件大小限制：默认 1MB（可通过 `INDEX_MAX_FILE_SIZE` 配置）
@@ -1338,7 +1371,436 @@ ENVIRONMENT=production
 JWT_SECRET=<strong-random-secret>
 POSTGRES_PASSWORD=<secure-password>
 OPENAI_API_KEY=<your-api-key>
+CHROMA_PERSIST_DIRECTORY=/data/vectorstore   # Python Agent 向量库持久化目录（docker-compose 已挂载到该路径）
+REDIS_HOST=redis                             # Docker 部署下 user-service 连接 Redis 的主机名
+REDIS_PORT=6379
 ```
+
+---
+
+## 技术难点与解决方案
+
+本章节记录项目开发过程中遇到的典型技术难题、分析过程和解决方案，供后续开发和面试参考。
+
+### 难点1：对话历史中的类型不匹配问题
+
+#### 问题描述
+
+**时间**：2025-11-23
+**模块**：对话历史管理（Java User Service → Python Agent Service）
+**现象**：前端发送消息后，输入框清空，但消息列表中没有显示任何内容（既无用户问题，也无 AI 回答）
+
+#### 问题定位过程
+
+1. **初步怀疑**：Python Agent 服务异常
+   - 检查 Agent 服务日志：无异常
+   - 手动调用 `/api/v1/chat/ask` 接口：正常返回
+
+2. **前端调试**：检查网络请求
+   - 请求状态码：200 OK
+   - 响应体：`{ "success": true, "code": 200, "data": {...} }`
+   - 排除前端和网络问题
+
+3. **数据库验证**：查询 messages 表
+   ```sql
+   SELECT * FROM messages WHERE conversation_id = 'xxx';
+   ```
+   - 结果：空（预期应有 user + assistant 两条记录）
+   - **关键发现**：数据库事务回滚了
+
+4. **后端日志分析**：启用 DEBUG 日志
+   ```
+   ERROR - 调用 Agent 生成回答失败: For input string: "a1b2c3d4-uuid-..."
+   java.lang.NumberFormatException: For input string: "a1b2c3d4-uuid-..."
+       at java.lang.Long.parseLong(Long.java:702)
+       at java.lang.Long.valueOf(Long.java:1163)
+       at ChatServiceImpl.sendMessage(ChatServiceImpl.java:80)
+   ```
+   - **根本原因找到**：UUID 字符串被强制转换为 Long
+
+#### 根本原因分析
+
+**数据类型不一致导致的跨服务调用失败：**
+
+| 层级 | 字段 | 数据类型 | 说明 |
+|------|------|----------|------|
+| **Java 数据库** | `conversations.id` | `VARCHAR(50)` | UUID 字符串，如 `"a1b2-c3d4-..."` |
+| **Java 实体** | `Conversation.id` | `String` | `@TableId(type = IdType.ASSIGN_UUID)` |
+| **Java Controller** | `conversationId` | `String` | `@PathVariable String conversationId` |
+| **Python DTO** | `ChatAskRequest.conversationId` | `Optional[int]` | **期望整数** |
+| **Java 调用代码** | `Long.valueOf(conversationId)` | `Long` | **类型转换失败** |
+
+**问题代码片段**：
+
+```java
+// ChatServiceImpl.java:80（问题代码）
+agentClientService.askQuestion(
+    conversation.getProjectId(),
+    request.getContent(),
+    Long.valueOf(conversationId)  // ❌ UUID 字符串无法转为 Long
+);
+```
+
+**异常传播链**：
+```
+UUID → Long.valueOf()
+  → NumberFormatException
+  → 被 catch (Exception e) 捕获
+  → 抛出 BusinessException("AI 回答生成失败")
+  → @Transactional 事务回滚
+  → 用户消息也未保存
+  → 前端看起来"没反应"
+```
+
+#### 临时解决方案（已实施）
+
+**方案**：暂时传 `null` 给 Python Agent
+
+```java
+// ChatServiceImpl.java:80（修复后）
+agentClientService.askQuestion(
+    conversation.getProjectId(),
+    request.getContent(),
+    null  // ✅ 当前版本 Python Agent 是无状态 RAG，不需要 conversationId
+);
+```
+
+**可行性分析**：
+- ✅ Python `QaAgent.ask()` 当前实现是**无状态 RAG**，仅基于当前问题和检索结果生成回答
+- ✅ 对话历史完全由 **Java 端数据库**管理（`conversations` + `messages` 表）
+- ✅ Python Agent 不需要知道会话 ID 即可正常工作
+- ✅ 前端通过 Java API 查询历史，不依赖 Python 存储
+
+**优点**：
+- 立即可用，无需修改 Python 代码
+- 不影响现有功能
+
+**缺点**：
+- 无法支持真正的多轮对话（Python 无法获取历史上下文）
+- 接口设计不一致（conversationId 字段存在但未使用）
+
+---
+
+#### 长期解决方案设计
+
+##### 方案一：统一使用 String 类型（推荐）★★★★★
+
+**设计思路**：将 Python 端的 `conversationId` 改为字符串类型，与 Java 端保持一致。
+
+**改动点**：
+
+1. **Python DTO 修改**：
+   ```python
+   # agent-service/app/models/chat.py
+   class ChatAskRequest(BaseModel):
+       projectId: int = Field(alias="project_id")
+       question: str
+       conversationId: Optional[str] = Field(None, alias="conversation_id")  # ✅ 改为 str
+   ```
+
+2. **Python Agent 使用**（可选，为未来多轮对话预留）：
+   ```python
+   # agent-service/app/agents/qa_agent.py
+   async def ask(
+       self,
+       project_id: int,
+       question: str,
+       conversation_id: Optional[str] = None  # ✅ 接收 UUID 字符串
+   ) -> AgentAnswer:
+       # 未来可以用 conversation_id 去 Redis/数据库查询历史上下文
+       if conversation_id:
+           history = await self._get_conversation_history(conversation_id)
+           # 将历史拼接到 prompt 中...
+       # ...
+   ```
+
+3. **Java 调用修改**：
+   ```java
+   // ChatServiceImpl.java
+   agentClientService.askQuestion(
+       conversation.getProjectId(),
+       request.getContent(),
+       conversationId  // ✅ 直接传 UUID 字符串
+   );
+   ```
+
+4. **AgentClientService 修改**：
+   ```java
+   // AgentClientService.java
+   public QuestionResponse askQuestion(Long projectId, String question, String conversationId) {
+       // conversationId 参数改为 String
+       QuestionRequest request = QuestionRequest.builder()
+           .projectId(projectId)
+           .question(question)
+           .conversationId(conversationId)  // ✅ String 类型
+           .build();
+       // ...
+   }
+   ```
+
+5. **QuestionRequest DTO 修改**：
+   ```java
+   // QuestionRequest.java
+   @Data
+   @Builder
+   public class QuestionRequest {
+       private Long projectId;
+       private String question;
+       private String conversationId;  // ✅ Long → String
+   }
+   ```
+
+**优点**：
+- ✅ 类型系统一致，不会有转换异常
+- ✅ 符合 UUID 本身就是字符串的语义
+- ✅ 为未来多轮对话预留扩展空间
+- ✅ 改动量小，逻辑清晰
+
+**缺点**：
+- ⚠️ 需要同时修改 Java 和 Python 两侧代码
+- ⚠️ 需要更新接口文档
+
+**工作量评估**：1-2 小时
+
+---
+
+##### 方案二：Java 端维护 ID 映射表
+
+**设计思路**：在 Java 端维护一个 `conversation_id_mapping` 表，将 UUID 映射为自增 Long ID。
+
+**数据库设计**：
+```sql
+CREATE TABLE conversation_id_mapping (
+    numeric_id BIGSERIAL PRIMARY KEY,       -- 自增 Long ID
+    uuid_id VARCHAR(50) UNIQUE NOT NULL,    -- 原始 UUID
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_mapping_uuid ON conversation_id_mapping(uuid_id);
+```
+
+**Java 实现**：
+```java
+@Service
+public class ConversationIdMapper {
+    @Autowired
+    private ConversationIdMappingRepository mappingRepo;
+
+    public Long getOrCreateNumericId(String uuid) {
+        return mappingRepo.findByUuidId(uuid)
+            .map(ConversationIdMapping::getNumericId)
+            .orElseGet(() -> {
+                ConversationIdMapping mapping = new ConversationIdMapping();
+                mapping.setUuidId(uuid);
+                mappingRepo.save(mapping);
+                return mapping.getNumericId();
+            });
+    }
+}
+
+// ChatServiceImpl.java
+Long numericConversationId = conversationIdMapper.getOrCreateNumericId(conversationId);
+agentClientService.askQuestion(projectId, question, numericConversationId);
+```
+
+**优点**：
+- ✅ 不需要修改 Python 代码
+- ✅ 保持 Java 端使用 UUID，Python 端使用 Long
+
+**缺点**：
+- ❌ 引入额外的映射表，增加复杂度
+- ❌ 每次调用都需要查询/插入映射表，性能开销
+- ❌ 数据冗余（UUID 和 Long 同时存在）
+- ❌ 映射表需要维护和清理
+
+**工作量评估**：3-4 小时
+
+---
+
+##### 方案三：双主键设计
+
+**设计思路**：`conversations` 表同时使用 UUID 和自增 ID。
+
+**数据库改造**：
+```sql
+ALTER TABLE conversations
+    ADD COLUMN numeric_id BIGSERIAL UNIQUE;
+
+CREATE INDEX idx_conversations_numeric_id ON conversations(numeric_id);
+```
+
+**Java 实体修改**：
+```java
+@TableName("conversations")
+public class Conversation {
+    @TableId(value = "id", type = IdType.ASSIGN_UUID)
+    private String id;  // UUID 主键
+
+    @TableField("numeric_id")
+    private Long numericId;  // 自增数字 ID
+
+    // ...
+}
+```
+
+**优点**：
+- ✅ 不需要额外映射表
+- ✅ 同时满足两种需求
+
+**缺点**：
+- ❌ 数据库表结构变更，需要迁移脚本
+- ❌ 概念混淆（一个对话有两个 ID）
+- ❌ 需要修改所有相关查询和外键
+
+**工作量评估**：4-5 小时
+
+---
+
+##### 方案四：完全独立的会话管理
+
+**设计思路**：Python 和 Java 各自维护独立的会话状态。
+
+**架构设计**：
+```
+Java 端：
+- conversations 表（UUID）：业务层面的对话管理
+- messages 表：持久化聊天记录
+
+Python 端：
+- Redis 存储：临时会话上下文（TTL 1小时）
+- Key: conversation:{uuid} → JSON{history, metadata}
+```
+
+**Python 实现**：
+```python
+# agent-service/app/services/session_store.py
+class SessionStore:
+    def __init__(self, redis_client):
+        self.redis = redis_client
+
+    async def get_history(self, conversation_id: str) -> List[Dict]:
+        key = f"conversation:{conversation_id}"
+        data = await self.redis.get(key)
+        return json.loads(data) if data else []
+
+    async def append_message(self, conversation_id: str, role: str, content: str):
+        key = f"conversation:{conversation_id}"
+        history = await self.get_history(conversation_id)
+        history.append({"role": role, "content": content})
+        await self.redis.setex(key, 3600, json.dumps(history))  # 1小时过期
+```
+
+**优点**：
+- ✅ Java 和 Python 完全解耦
+- ✅ Python 使用高性能 Redis，适合实时对话
+
+**缺点**：
+- ❌ 数据冗余（Java DB + Python Redis）
+- ❌ 一致性难以保证
+- ❌ 需要引入 Redis 依赖
+
+**工作量评估**：5-6 小时
+
+---
+
+#### 方案对比与推荐
+
+| 方案 | 复杂度 | 工作量 | 性能 | 可维护性 | 推荐指数 |
+|------|--------|--------|------|----------|----------|
+| **方案一：统一 String** | ⭐ | 1-2h | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 方案二：ID 映射表 | ⭐⭐⭐ | 3-4h | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
+| 方案三：双主键设计 | ⭐⭐⭐⭐ | 4-5h | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
+| 方案四：独立会话管理 | ⭐⭐⭐⭐⭐ | 5-6h | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
+
+**推荐方案**：**方案一（统一使用 String 类型）**
+
+**推荐理由**：
+1. **简单直接**：UUID 本身就是字符串，强行转数字没有意义
+2. **改动最小**：只需修改几个 DTO 类型定义
+3. **符合语义**：`conversationId` 本质是标识符，不是数值
+4. **面试友好**：能清晰解释"类型系统一致性"的重要性
+
+---
+
+#### 实施计划（方案一）
+
+**Phase 1：Python 端改造**（30分钟）
+```bash
+# 1. 修改 DTO
+agent-service/app/models/chat.py
+  - ChatAskRequest.conversationId: Optional[int] → Optional[str]
+
+# 2. 更新测试用例
+agent-service/tests/integration/test_chat_api.py
+  - 传入字符串 conversationId 进行测试
+
+# 3. 更新 API 文档
+agent-service/app/api/v1/chat.py
+  - 修改 OpenAPI 注释
+```
+
+**Phase 2：Java 端改造**（1小时）
+```bash
+# 1. 修改 DTO
+user-service/.../client/dto/QuestionRequest.java
+  - conversationId: Long → String
+
+# 2. 修改 Service
+user-service/.../client/AgentClientService.java
+  - askQuestion 方法签名
+
+user-service/.../service/impl/ChatServiceImpl.java
+  - 移除 Long.valueOf()，直接传 conversationId
+
+# 3. 更新测试
+user-service/src/test/.../ChatServiceImplTest.java
+  - 测试 UUID 字符串传递
+```
+
+**Phase 3：文档更新**（30分钟）
+```bash
+# 1. API 文档
+PROJECTWIKI.md
+  - 更新对话接口说明
+
+# 2. CHANGELOG
+CHANGELOG.md
+  - 记录类型修改
+
+# 3. 迁移指南
+docs/migration-guide.md（新建）
+  - 说明接口变更
+```
+
+**测试验证**：
+- [ ] Python 单元测试通过
+- [ ] Java 集成测试通过
+- [ ] 前端创建对话 → 发送消息 → 查看历史，完整流程正常
+- [ ] 数据库中能看到 user + assistant 两条消息
+
+---
+
+#### 经验总结
+
+**技术教训**：
+1. **跨服务接口设计时，务必明确类型约定**
+   - 在接口设计阶段就应该统一字段类型
+   - UUID 应统一使用 String，避免强制转换
+
+2. **异常日志要充分，便于快速定位**
+   - 当前异常被 `catch (Exception e)` 捕获后，原始 `NumberFormatException` 信息丢失
+   - 建议：`log.error("调用 Agent 失败", e)` 保留完整堆栈
+
+3. **事务边界要清晰**
+   - `@Transactional` 导致异常时整体回滚，连用户消息也丢失
+   - 可以考虑分两个事务：先保存用户消息并提交，再调用 Agent
+
+4. **临时方案要留清晰注释**
+   - 当前 `null` 方案虽可用,但未来可能遗忘
+   - 应在代码中加 `// FIXME:` 注释，提醒后续重构
+
+**面试话术**：
+> "这个问题让我深刻理解了**分布式系统中类型系统一致性**的重要性。在微服务架构中，不同语言的类型映射需要在设计阶段就明确约定。我采用的解决方案是统一使用字符串类型，因为 UUID 本身就是字符串标识符，强行转数字没有语义价值，反而增加了复杂度和出错风险。"
 
 ---
 

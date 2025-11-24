@@ -83,6 +83,14 @@ class IndexStatusStore:
 
         return None
 
+    def get_collection_stats(self, project_id: int) -> Dict:
+        """
+        获取底层向量集合的统计信息。
+
+        目前直接委托给 VectorStoreService，主要用于调试型 API。
+        """
+        return self._vectorstore.get_collection_stats(project_id)
+
 
 class CodeIndexer:
     """代码索引协调服务。"""
@@ -227,6 +235,13 @@ class CodeIndexer:
             )
         return status
 
+    def get_collection_stats(self, project_id: int) -> Dict:
+        """
+        返回指定项目的向量集合统计信息。
+
+        用于调试和监控接口，避免直接暴露内部存储实现。
+        """
+        return self._status_store.get_collection_stats(project_id)
+
 
 __all__ = ["CodeIndexer", "IndexStatusStore"]
-

@@ -127,7 +127,6 @@ npm run build
   - DELETE /api/v1/projects/:id
 - [x] Agent API (agent-service)
   - POST /api/v1/chat
-  - GET /api/v1/chat/history/:id
 
 ## ⏭️ 待开发功能
 

@@ -5,7 +5,6 @@
 import asyncio
 import json
 import logging
-import os
 import re
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -14,6 +13,7 @@ from pathlib import Path
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 
+from app.config import settings
 from app.models.review import (
     StaticIssue,
     Issue,
@@ -95,15 +95,22 @@ class ReviewAgent:
     """智能代码审查Agent"""
 
     def __init__(self, openai_api_key: Optional[str] = None):
-        api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+        """
+        初始化审查 Agent。
+
+        优先使用传入的 openai_api_key，其次使用全局 Settings 配置，
+        最后回退到环境变量 OPENAI_API_KEY（兼容旧配置）。
+        """
+        api_key = openai_api_key or settings.openai_api_key or os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError("需要配置 OPENAI_API_KEY 环境变量")
+            raise ValueError("需要配置 OpenAI API Key（settings.openai_api_key 或环境变量 OPENAI_API_KEY）")
 
         self.llm = ChatOpenAI(
-            model="gpt-4",
-            temperature=0,  # 确定性输出
-            max_tokens=2000,
-            api_key=api_key
+            model=settings.openai_model,
+            temperature=0,  # 审查场景保持确定性输出
+            max_tokens=settings.openai_max_tokens,
+            api_key=api_key,
+            base_url=settings.openai_api_base or None,
         )
         self.static_analyzer = StaticAnalyzer()
 

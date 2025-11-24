@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BrutButton, BrutCard, BrutContainer, ReviewReport } from '../components';
-import { projectAPI, reviewAPI } from '../services/api';
+import { projectAPI, reviewAPI, chatAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useTaskProgress, type ReviewReport as ReviewReportType } from '../hooks/useTaskProgress';
 
@@ -41,6 +41,31 @@ export default function ProjectDetailPage() {
   const [reviewReport, setReviewReport] = useState<ReviewReportType | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState('');
+
+  // 对话与聊天状态
+  const [conversations, setConversations] = useState<Array<{
+    id: string;
+    title: string;
+    createdAt: string;
+  }> | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  type ChatMessage = {
+    id: number;
+    role: 'user' | 'assistant';
+    content: string;
+    createdAt: string;
+    sources?: {
+      filePath: string;
+      startLine: number;
+      endLine: number;
+    }[] | null;
+  };
+
+  const [messages, setMessages] = useState<ChatMessage[] | null>(null);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // WebSocket 订阅任务进度
   const handleReviewComplete = useCallback((report: ReviewReportType) => {
@@ -86,6 +111,93 @@ export default function ProjectDetailPage() {
     logout();
     navigate('/login');
   };
+
+  // 加载项目下的对话列表
+  const loadConversations = async (projectId: number) => {
+    try {
+      const res = await chatAPI.getConversations(projectId);
+      if (res.data.code === 200) {
+        setConversations(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+    }
+  };
+
+  // 加载指定对话的消息历史
+  const loadMessages = async (conversationId: string) => {
+    try {
+      const res = await chatAPI.getMessages(conversationId);
+      if (res.data.code === 200) {
+        setMessages(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load messages:', err);
+    }
+  };
+
+  const handleOpenChat = async () => {
+    if (!project) return;
+    setChatError('');
+
+    // 首次点击时加载对话列表
+    if (!conversations) {
+      await loadConversations(project.id);
+    }
+  };
+
+  const handleSelectConversation = async (conversationId: string) => {
+    setSelectedConversationId(conversationId);
+    await loadMessages(conversationId);
+  };
+
+  const handleCreateConversation = async () => {
+    if (!project) return;
+    setChatError('');
+    try {
+      const res = await chatAPI.createConversation(project.id, `对话 ${new Date().toLocaleString('zh-CN')}`);
+      if (res.data.code === 200 && res.data.data) {
+        const conv = res.data.data;
+        const next = [...(conversations || []), conv];
+        setConversations(next);
+        setSelectedConversationId(conv.id);
+        setMessages([]);
+      } else {
+        setChatError(res.data.message || '创建对话失败');
+      }
+    } catch (err: any) {
+      console.error('Create conversation error:', err);
+      setChatError(err.response?.data?.message || '创建对话失败');
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedConversationId || !chatInput.trim()) return;
+    setChatLoading(true);
+    setChatError('');
+    try {
+      const res = await chatAPI.sendMessage(selectedConversationId, chatInput.trim());
+      if (res.data.code === 200 && res.data.data) {
+        // 发送成功后，简单重新加载消息列表，确保包含模型回复
+        await loadMessages(selectedConversationId);
+        setChatInput('');
+      } else {
+        setChatError(res.data.message || '发送消息失败');
+      }
+    } catch (err: any) {
+      console.error('Send message error:', err);
+      setChatError(err.response?.data?.message || '发送消息失败');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  // 消息更新后自动滚动到底部
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollTop = messagesEndRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   // 触发代码审查
   const handleStartReview = async (level: 'quick' | 'standard' | 'full' = 'standard') => {
@@ -391,17 +503,115 @@ export default function ProjectDetailPage() {
             </div>
           )}
 
-          {/* 操作按钮 */}
-          <div className="flex gap-4">
-            <BrutButton variant="primary" disabled>
-              开始对话 (即将推出)
-            </BrutButton>
-            <BrutButton variant="secondary" disabled>
-              重新索引 (即将推出)
-            </BrutButton>
-            <BrutButton variant="danger" disabled>
-              删除项目 (即将推出)
-            </BrutButton>
+          {/* 对话与历史（基础版） */}
+          <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 对话列表 */}
+            <BrutCard className="lg:col-span-1">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="brut-h4">对话列表</h3>
+                <BrutButton size="sm" variant="secondary" onClick={handleCreateConversation}>
+                  新建对话
+                </BrutButton>
+              </div>
+              <BrutButton
+                variant="primary"
+                className="w-full mb-3"
+                onClick={() => {
+                  if (project) loadConversations(project.id);
+                }}
+              >
+                刷新对话
+              </BrutButton>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {conversations && conversations.length > 0 ? (
+                  conversations.map((c) => (
+                    <button
+                      key={c.id}
+                      className={`w-full text-left px-3 py-2 border-2 border-black ${
+                        selectedConversationId === c.id ? 'bg-brut-yellow' : 'bg-white'
+                      }`}
+                      onClick={() => handleSelectConversation(c.id)}
+                    >
+                      <div className="font-bold text-sm line-clamp-1">{c.title}</div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(c.createdAt).toLocaleString('zh-CN')}
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">暂无对话，点击“新建对话”开始一轮新对话。</p>
+                )}
+              </div>
+            </BrutCard>
+
+            {/* 消息历史 + 输入框 */}
+            <BrutCard className="lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="brut-h4">对话历史</h3>
+                <BrutButton size="sm" variant="secondary" onClick={handleOpenChat}>
+                  查看历史
+                </BrutButton>
+              </div>
+              {chatError && (
+                <div className="mb-3 p-2 bg-red-100 border-2 border-red-500 text-sm text-red-700">
+                  {chatError}
+                </div>
+              )}
+              <div
+                ref={messagesEndRef}
+                className="h-64 border-2 border-black bg-white overflow-y-auto mb-4 p-3 space-y-3"
+              >
+                {selectedConversationId && messages && messages.length > 0 ? (
+                  messages.map((m) => (
+                    <div key={m.id} className="border-b border-dashed border-gray-300 pb-2">
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>{m.role === 'user' ? '你' : '助手'}</span>
+                        <span>{new Date(m.createdAt).toLocaleString('zh-CN')}</span>
+                      </div>
+                      <div className="text-sm whitespace-pre-wrap">{m.content}</div>
+                      {m.role === 'assistant' && m.sources && m.sources.length > 0 && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          <div className="font-bold">引用代码:</div>
+                          <ul className="list-disc list-inside">
+                            {m.sources.map((s, index) => (
+                              <li key={index}>
+                                {s.filePath} [{s.startLine}-{s.endLine}]
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    请选择左侧的对话查看历史，或创建一个新对话。
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <input
+                  className="flex-1 px-3 py-2 border-2 border-black bg-white font-mono text-sm focus:outline-none focus:ring-0"
+                  placeholder="输入消息，回车发送"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  disabled={!selectedConversationId || chatLoading}
+                />
+                <BrutButton
+                  variant="primary"
+                  onClick={handleSendMessage}
+                  disabled={!selectedConversationId || chatLoading || !chatInput.trim()}
+                >
+                  {chatLoading ? '发送中...' : '发送'}
+                </BrutButton>
+              </div>
+            </BrutCard>
           </div>
         </BrutContainer>
       </main>

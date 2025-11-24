@@ -84,12 +84,13 @@ async def get_index_stats(
 ) -> ResponseModel[Dict]:
     """
     调试用接口：返回底层向量集合的文档数等信息。
+
+    说明：
+    - 通过 CodeIndexer 暴露的查询方法获取统计信息，避免依赖内部私有属性。
     """
-    # 直接通过 indexer 内部的 VectorStoreService 获取集合统计
-    stats = indexer._status_store._vectorstore.get_collection_stats(project_id)  # type: ignore[attr-defined]
+    stats = indexer.get_collection_stats(project_id)
     return create_response(
         data=stats,
         message=ResponseMessage.QUERY_SUCCESS,
         code=200,
     )
-
